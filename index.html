@@ -2,8 +2,6 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<script>window.history.scrollRestoration="manual";window.scrollTo(0,0);</script>
-<style>html,body{scroll-behavior:auto!important;}</style>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
 <title>NTT AUTOMARK</title>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -787,6 +785,10 @@ const GraphsPanel=memo(({pColor,pName})=>{
   const sumV=function(a){return a.reduce(function(s,v){return s+v;},0);};
   const avgV=function(a){var nz=a.filter(function(v){return v>0;});return nz.length?Math.round(sumV(nz)/nz.length):0;};
   const hasMyData=myVals.some(function(v){return v>0;});
+  const myGPVals=MO.map(function(m){return parseFloat((((pData[pName]||{})["gp"]||{})[m]||"").replace(/[^0-9.]/g,""))||0;});
+  const myUVals=MO.map(function(m){return parseFloat((((pData[pName]||{})["units"]||{})[m]||"").replace(/[^0-9.]/g,""))||0;});
+  const tGPVals=MO.map(function(m){return parseFloat(((teamData["gp"]||{})[m]||"").replace(/[^0-9.]/g,""))||0;});
+  const tUVals=MO.map(function(m){return parseFloat(((teamData["units"]||{})[m]||"").replace(/[^0-9.]/g,""))||0;});
   const renderBars=function(vals,c,h){
     var mx=Math.max.apply(null,vals.concat([1]));
     return vals.map(function(v,i){
@@ -797,7 +799,8 @@ const GraphsPanel=memo(({pColor,pName})=>{
       </div>;
     });
   };
-  const renderStats=function(vals,c){
+  const renderStats=function(vals,c,gpV,uV){
+    if(active==="rpu"&&gpV&&uV){var tGP=sumV(gpV);var tU=sumV(uV);var trueAvg=tU>0?Math.round(tGP/tU):0;return <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginTop:10}}><div style={{background:c+"18",borderRadius:8,padding:"7px",textAlign:"center"}}><div style={{fontSize:9,color:"#888"}}>True Avg GP/Unit</div><div style={{fontSize:13,fontWeight:800,color:c}}>R{trueAvg.toLocaleString()}</div></div><div style={{background:c+"18",borderRadius:8,padding:"7px",textAlign:"center"}}><div style={{fontSize:9,color:"#888"}}>Best Month</div><div style={{fontSize:13,fontWeight:800,color:c}}>R{Math.max.apply(null,vals.concat([0])).toLocaleString()}</div></div></div>;}
     return <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginTop:10}}>
       <div style={{background:c+"18",borderRadius:8,padding:"7px",textAlign:"center"}}><div style={{fontSize:9,color:"#888"}}>Total</div><div style={{fontSize:13,fontWeight:800,color:c}}>{pre}{sumV(vals).toLocaleString()}</div></div>
       <div style={{background:c+"18",borderRadius:8,padding:"7px",textAlign:"center"}}><div style={{fontSize:9,color:"#888"}}>Avg/Mo</div><div style={{fontSize:13,fontWeight:800,color:c}}>{pre}{avgV(vals).toLocaleString()}</div></div>
@@ -823,7 +826,7 @@ const GraphsPanel=memo(({pColor,pName})=>{
             <div style={{display:"flex",alignItems:"flex-end",gap:2,height:106,borderBottom:"2px solid #eee",paddingBottom:2}}>
               {renderBars(myVals,pColor||"#C9A84C",90)}
             </div>
-            {renderStats(myVals,pColor||"#C9A84C")}
+            {renderStats(myVals,pColor||"#C9A84C",myGPVals,myUVals)}
           </div>
         ):(
           <div style={{textAlign:"center",padding:"20px",color:"#aaa",fontSize:12,background:"#fafafa",borderRadius:8}}>
@@ -835,7 +838,7 @@ const GraphsPanel=memo(({pColor,pName})=>{
         <div style={{display:"flex",alignItems:"flex-end",gap:2,height:106,borderBottom:"2px solid #eee",paddingBottom:2}}>
           {renderBars(tVals,col,90)}
         </div>
-        {renderStats(tVals,col)}
+        {renderStats(tVals,col,tGPVals,tUVals)}
       </Card>
     </div>
   );
