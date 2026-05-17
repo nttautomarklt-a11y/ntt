@@ -1124,6 +1124,8 @@ const [selLead,setSelLead]=useState(null);
 
 const Dashboard=memo(({pName,onLogout,appData})=>{
   const [sTab,setSTab]=useState("home");
+  const changeTab=(t)=>{setSTab(t);window.scrollTo({top:0,behavior:"smooth"});};
+  useEffect(()=>{window.scrollTo({top:0,behavior:"instant"});},[]);
   const [vwk,setVwk]=useState(()=>getCurWeek());
   const cwk=getCurWeek();
   const people=(appData.people)||[];
@@ -1330,7 +1332,7 @@ const Dashboard=memo(({pName,onLogout,appData})=>{
   };
   return(
     <div style={{maxWidth:480,margin:"0 auto",background:"#f5f5f0",minHeight:"100vh",paddingBottom:70}}>
-      <div style={{position:"sticky",top:0,zIndex:50,background:"#111",padding:"8px 12px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div style={{position:"sticky",top:0,zIndex:50,background:"#111",padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <div style={{width:8,height:8,borderRadius:"50%",background:pColor,flexShrink:0}}/>
           <div style={{lineHeight:1.2}}>
@@ -1343,7 +1345,7 @@ const Dashboard=memo(({pName,onLogout,appData})=>{
       </div>
       <div style={{overflowX:"auto",display:"flex",gap:4,padding:"8px 10px",background:"#111",borderBottom:"1px solid #0a0a0a",WebkitOverflowScrolling:"touch"}}>
         {TABS.map(tab=>(
-          <button key={tab.id} onClick={()=>setSTab(tab.id)} style={{flexShrink:0,padding:"5px 11px",borderRadius:20,border:"none",background:sTab===tab.id?pColor:"#1a1a1a",color:sTab===tab.id?"#fff":"#555",cursor:"pointer",fontSize:10,fontWeight:sTab===tab.id?700:400,whiteSpace:"nowrap",transition:"all .15s"}}>
+          <button key={tab.id} onClick={()=>changeTab(tab.id)} style={{flexShrink:0,padding:"5px 11px",borderRadius:20,border:"none",background:sTab===tab.id?pColor:"#1a1a1a",color:sTab===tab.id?"#fff":"#bbb",cursor:"pointer",fontSize:11,fontWeight:sTab===tab.id?700:500,whiteSpace:"nowrap",transition:"all .15s"}}>
             {tab.label}
           </button>
         ))}
