@@ -51,6 +51,7 @@ function loadSuppliers(){try{var x=JSON.parse(localStorage.getItem(SAVE_KEY)||"{
 function saveSoldUnits(d){try{var x=JSON.parse(localStorage.getItem(SAVE_KEY)||'{}');x.soldUnits=d;x.savedAt=new Date().toISOString();localStorage.setItem(SAVE_KEY,JSON.stringify(x));}catch(e){}}
 function saveSalesmanCRM(d){try{const x=JSON.parse(localStorage.getItem(SAVE_KEY)||'{}');localStorage.setItem(SAVE_KEY,JSON.stringify({...x,salesmanCRM:d,savedAt:new Date().toISOString()}));}catch(e){}}
 var FB_URL='https://ntt-automark-default-rtdb.firebaseio.com';var FB_KEY='AIzaSyCXyVGftSYpeYgR1-Cb6yaY5EE6pfOLSXI';var FB_PATH=FB_URL+'/ntt.json?auth='+FB_KEY;function fbPull(){return fetch(FB_PATH).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;});}function fbPush(d){try{fetch(FB_PATH,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});}catch(e){}}
+function fbPushPath(p,d){try{fetch(FB_URL+'/ntt/'+p+'.json?auth='+FB_KEY,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});}catch(e){}}
 
 function _nttDoLogin(){
   var sel=document.getElementById('ntt-sel');
@@ -999,12 +1000,11 @@ const [selLead,setSelLead]=useState(null);
         let pi=ppl.findIndex(p=>p.name===pName);
         if(pi<0){ppl.push({...person});pi=ppl.length-1;}
         if(pi<0)return;
-        ppl[pi].leads=(ppl[pi].leads||[]).map(l=>l.id===leadId?{...l,salesmanNote:note}:l);
+        ppl[pi]={...ppl[pi],leads:myLeads.map(l=>l.id===leadId?{...l,salesmanNote:note}:l)};
         data.people=ppl;
         localStorage.setItem(SAVE_KEY,JSON.stringify(data));
         fbPushPath("people",ppl);
-        var allL=ppl[pi].leads.slice().sort(function(a,b){return new Date(b.ts||0)-new Date(a.ts||0);});
-        setMyLeads(allL);
+        setMyLeads(ppl[pi].leads.slice().sort((a,b)=>new Date(b.ts||0)-new Date(a.ts||0)));
         setSelLead(sl=>sl&&sl.id===leadId?{...sl,salesmanNote:note}:sl);
         setNoteSaved(true);setTimeout(()=>setNoteSaved(false),2000);
       }catch(e){}
@@ -1015,20 +1015,20 @@ const [selLead,setSelLead]=useState(null);
       return s||STATUSES[0];
     };
     const updateStatus=(leadId,newStatus)=>{
+      const updatedLeads=myLeads.map(l=>l.id===leadId?{...l,leadStatus:newStatus}:l);
+      setMyLeads(updatedLeads);
+      setSelLead(sl=>sl&&sl.id===leadId?{...sl,leadStatus:newStatus}:sl);
       try{
         const raw=localStorage.getItem(SAVE_KEY);
-        if(!raw)return;
-        const data=JSON.parse(raw);
-        const ppl=data.people||[];
+        const data=raw?JSON.parse(raw):{people:[]};
+        const ppl=data.people&&data.people.length?[...data.people]:[{...person}];
         const pi=ppl.findIndex(p=>p.name===pName);
-        if(pi<0)return;
-        ppl[pi].leads=(ppl[pi].leads||[]).map(l=>l.id===leadId?{...l,leadStatus:newStatus}:l);
+        if(pi>=0)ppl[pi]={...ppl[pi],leads:updatedLeads};
+        else ppl.push({...person,leads:updatedLeads});
         data.people=ppl;
         localStorage.setItem(SAVE_KEY,JSON.stringify(data));
         fbPushPath("people",ppl);
-        setMyLeads(ppl[pi].leads.slice().sort((a,b)=>new Date(b.ts||0)-new Date(a.ts||0)));
-        setSelLead(sl=>sl&&sl.id===leadId?{...sl,leadStatus:newStatus}:sl);
-      }catch(e){console.error(e);}
+      }catch(e){}
     };
     const open=myLeads.filter(l=>!l.sold&&l.leadStatus!=="declined");
     const declined=myLeads.filter(l=>l.leadStatus==="declined");
@@ -1082,7 +1082,8 @@ const [selLead,setSelLead]=useState(null);
                     padding:"11px 8px",borderRadius:9,border:(selLead.leadStatus||"active")===s.key?"2px solid "+s.col:"2px solid #eee",
                     background:(selLead.leadStatus||"active")===s.key?s.bg:"#fafafa",
                     cursor:"pointer",fontSize:12,fontWeight:(selLead.leadStatus||"active")===s.key?700:400,
-                    color:(selLead.leadStatus||"active")===s.key?s.col:"#888"
+                    color:(selLead.leadStatus||"active")===s.key?s.col:"#888",
+                    touchAction:"manipulation"
                   }}>{s.label}</button>
                 ))}
               </div>
@@ -1095,7 +1096,7 @@ const [selLead,setSelLead]=useState(null);
           return shown.map((l,i)=>{
           const ss=getStatusStyle(l);
           return(
-            <div key={l.id||i} onClick={()=>{setSelLead(l);setNoteText(l.salesmanNote||"");setNoteSaved(false);}} style={{background:"#fff",borderRadius:10,border:"1px solid #eee",padding:"12px",marginBottom:8,cursor:"pointer",transition:"box-shadow .15s"}}
+            <div key={l.id||i} onClick={()=>{setSelLead(l);setNoteText(l.salesmanNote||"");setNoteSaved(false);}} onTouchEnd={(e)=>{e.preventDefault();setSelLead(l);setNoteText(l.salesmanNote||"");setNoteSaved(false);}} style={{background:"#fff",borderRadius:10,border:"1px solid #eee",padding:"12px",marginBottom:8,cursor:"pointer",touchAction:"manipulation"}}
               onTouchStart={e=>e.currentTarget.style.boxShadow="0 2px 12px rgba(0,0,0,.1)"}
               onTouchEnd={e=>e.currentTarget.style.boxShadow=""}>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
