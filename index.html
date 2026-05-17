@@ -839,33 +839,20 @@ const GraphsPanel=memo(({pColor,pName})=>{
   );
 });
 
-const StockPanel=memo(({stock:s=[]})=>{
+const StockPanel=memo(({stock:s=[],stockDemo:sd=[]})=>{
+  const [tab,setTab]=useState("used");
+  const rows=tab==="used"?s:sd;
   const [q,setQ]=useState("");
-  const filtered=q?s.filter(v=>((v.model||"").toLowerCase().includes(q.toLowerCase())||(v.stockNo||"").toLowerCase().includes(q.toLowerCase())||(v.colour||"").toLowerCase().includes(q.toLowerCase()))):s;
-  return(
-    <div className="fade">
-      <div style={{background:"linear-gradient(135deg,#1E8449,#155a30)",borderRadius:12,padding:"12px 14px",marginBottom:10,color:"#fff"}}>
-        <div style={{fontSize:15,fontWeight:700}}>📋 Current Stock</div>
-        <div style={{fontSize:10,opacity:.7}}>View only · {s.length} vehicles</div>
-      </div>
-      <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search make, model, stock #..." style={{width:"100%",padding:"9px 12px",borderRadius:9,border:"1px solid #ddd",fontSize:12,outline:"none",marginBottom:10,fontFamily:"inherit"}}/>
-      {filtered.length===0
-        ?<Card><div style={{textAlign:"center",padding:"16px",color:"#aaa",fontSize:12}}>No stock found.</div></Card>
-        :filtered.map((v,i)=>(
-          <div key={i} style={{background:"#fff",borderRadius:10,border:"1px solid #eee",padding:"12px",marginBottom:8}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-              <div>
-                <div style={{fontSize:13,fontWeight:700}}>{v.make||""} {v.model||""} {v.year||""}</div>
-                <div style={{fontSize:10,color:"#888",marginTop:2}}>Stock: {v.stockNo||"-"}{v.colour?" · "+v.colour:""}</div>
-                {v.km&&<div style={{fontSize:10,color:"#aaa",marginTop:1}}>{Number(v.km).toLocaleString()} km</div>}
-              </div>
-              {v.price&&<div style={{fontSize:14,fontWeight:800,color:"#1E8449",flexShrink:0}}>R{v.price}</div>}
-            </div>
-          </div>
-        ))
-      }
+  const fil=q.trim()?rows.filter(r=>Object.values(r).join(" ").toLowerCase().includes(q.toLowerCase())):rows;
+  const aS=(a)=>({flex:1,padding:"9px",border:"none",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer",background:a?"#1A6FAD":"#f0f0f0",color:a?"#fff":"#555"});
+  return(<div style={{paddingBottom:20}}>
+    <div style={{display:"flex",gap:8,marginBottom:12}}>
+      <button style={aS(tab==="used")} onClick={()=>{setTab("used");setQ("");}}>Used ({s.length})</button>
+      <button style={aS(tab==="demo")} onClick={()=>{setTab("demo");setQ("");}}>Demo ({sd.length})</button>
     </div>
-  );
+    <input value={q} onChange={e=>setQ(e.target.value)} placeholder={"Search "+tab+"..."} style={{width:"100%",padding:"9px 11px",borderRadius:8,border:"1px solid #ddd",fontSize:13,boxSizing:"border-box",marginBottom:10}}/>
+    {fil.length===0?<div style={{textAlign:"center",color:"#aaa",fontSize:13,padding:20}}>{q?"No matches":"No "+tab+" stock loaded"}</div>:fil.map((r,i)=>(<div key={i} className="card" style={{marginBottom:8,borderLeft:tab==="demo"?"3px solid #C9A84C":"3px solid #1A6FAD"}}><div style={{fontWeight:700,fontSize:14}}>{r.vehicle}</div><div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap"}}>{r.km&&<span style={{fontSize:11,color:"#555",background:"#f5f5f5",padding:"2px 7px",borderRadius:99}}>{r.km}</span>}{r.price&&<span style={{fontSize:11,color:"#1E8449",fontWeight:700,background:"#f0fff4",padding:"2px 7px",borderRadius:99}}>{r.price}</span>}{r.extra&&<span style={{fontSize:10,color:"#888"}}>{r.extra}</span>}</div></div>))}
+  </div>);
 });
 
 // ── TODO PANEL ────────────────────────────────────────────────────────────────
@@ -1329,7 +1316,7 @@ const Dashboard=memo(({pName,onLogout,appData})=>{
     training:()=><TrainingPanel pColor={pColor}/>,
     scripts:()=><ScriptsPanel/>,
     videos:renderVideos,shorts:renderShorts,
-    stock:()=><StockPanel stock={appData.stock||[]}/>,
+    stock:()=><StockPanel stock={appData.stock||[]} stockDemo={appData.stockDemo||[]}/>,
     todo:()=><TodoPanel pName={pName} pColor={pColor}/>,
     graphs:()=><GraphsPanel pColor={pColor} pName={pName}/>,
     find:()=><FindPanel pName={pName} pColor={pColor}/>,
@@ -1406,12 +1393,14 @@ function SalesmanApp(){
           if(d.people&&d.people.length)ex.people=d.people;
           if(d.soldUnits)ex.soldUnits=d.soldUnits;
           if(d.stock)ex.stock=d.stock;
+          if(d.stockDemo)ex.stockDemo=d.stockDemo;
           try{localStorage.setItem(SAVE_KEY,JSON.stringify(ex));}catch(e){}
           if(d.todo)try{localStorage.setItem("ntt_todo",JSON.stringify(d.todo));}catch(e){}
           if(d.find)try{localStorage.setItem("ntt_find",JSON.stringify(d.find));}catch(e){}
           if(d.graphs)try{localStorage.setItem("ntt_graphs",JSON.stringify(d.graphs));}catch(e){}
           if(d.graphsP)try{localStorage.setItem("ntt_graphs_p",JSON.stringify(d.graphsP));}catch(e){}
           if(d.stock)try{localStorage.setItem("ntt_sl",JSON.stringify(d.stock));}catch(e){}
+          if(d.stockDemo)try{localStorage.setItem("ntt_sl_demo",JSON.stringify(d.stockDemo));}catch(e){}
           setAppData(ex);
         }catch(e){}
       }).catch(function(){});
