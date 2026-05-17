@@ -1268,12 +1268,18 @@ const Dashboard=memo(({pName,onLogout,appData})=>{
         </div>
         <Card title="My Deals Done"><div style={{fontSize:10,color:"#C0392B",fontStyle:"italic",marginBottom:8,textAlign:"center",fontWeight:600}}>Total GP shown excludes lic and reg and fuel expenses</div>
           {myDeals.length===0?<div style={{textAlign:"center",padding:"16px",color:"#aaa",fontSize:12}}>No deals yet this month.</div>:myDeals.map((u,i)=>(
-            <div key={i} style={{borderBottom:"1px solid #f5f5f5",paddingBottom:8,marginBottom:8}}>
-              <div style={{display:"flex",justifyContent:"space-between"}}>
-                <div style={{fontWeight:700,fontSize:12}}>{u.make||""} {u.model||""} {u.year||""}</div>
-                <div style={{fontSize:11,color:"#1E8449",fontWeight:700}}>R{(u.gp||0).toLocaleString()}</div>
+            <div key={i} style={{borderBottom:"1px solid #eee",paddingBottom:10,marginBottom:8,padding:"10px 8px",background:i%2===0?"#fafafa":"#fff",borderRadius:8}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:3}}>
+                <div style={{fontWeight:700,fontSize:13,color:"#111",flex:1,paddingRight:6}}>{u.vehicle||((u.make||"")+" "+(u.model||"")+" "+(u.year||"")).trim()||"Vehicle"}</div>
+                <div style={{fontSize:13,color:"#1E8449",fontWeight:800,whiteSpace:"nowrap"}}>R{(u.gp||0).toLocaleString()}</div>
               </div>
-              <div style={{fontSize:10,color:"#888"}}>{u.saleDate||""}{u.stockNo?" · "+u.stockNo:""}</div>
+              {(u.surname||u.clientName)&&<div style={{fontSize:11,color:"#555",fontWeight:600,marginBottom:4}}>👤 {u.surname||u.clientName}</div>}
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                {u.stockNo&&<span style={{fontSize:10,color:"#888",background:"#f0f0f0",padding:"1px 6px",borderRadius:99}}>Stock: {u.stockNo}</span>}
+                {u.saleDate&&<span style={{fontSize:10,color:"#aaa"}}>{u.saleDate}</span>}
+                {u.isLead&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:99,background:"#1E844918",color:"#1E8449",fontWeight:700}}>LEAD</span>}
+                {u.tradeIn&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:99,background:"#1A6FAD18",color:"#1A6FAD",fontWeight:700}}>TRADE</span>}
+              </div>
             </div>
           ))}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:8}}>
