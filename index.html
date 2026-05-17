@@ -1124,8 +1124,8 @@ const [selLead,setSelLead]=useState(null);
 
 const Dashboard=memo(({pName,onLogout,appData})=>{
   const [sTab,setSTab]=useState("home");
-  const changeTab=(t)=>{setSTab(t);window.scrollTo({top:0,behavior:"smooth"});};
-  useEffect(()=>{window.scrollTo({top:0,behavior:"instant"});},[]);
+  const changeTab=(t)=>{setSTab(t);setTimeout(()=>{window.scrollTo(0,0);document.documentElement.scrollTop=0;document.body.scrollTop=0;},0);};
+  useEffect(()=>{window.scrollTo(0,0);document.documentElement.scrollTop=0;document.body.scrollTop=0;},[]);;
   const [vwk,setVwk]=useState(()=>getCurWeek());
   const cwk=getCurWeek();
   const people=(appData.people)||[];
