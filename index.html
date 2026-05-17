@@ -994,10 +994,10 @@ const [selLead,setSelLead]=useState(null);
     const saveNote=(leadId,note)=>{
       try{
         const raw=localStorage.getItem(SAVE_KEY);
-        if(!raw)return;
-        const data=JSON.parse(raw);
-        const ppl=data.people||[];
-        const pi=ppl.findIndex(p=>p.name===pName);
+        const data=raw?JSON.parse(raw):{people:[{...person}]};
+        const ppl=data.people&&data.people.length?data.people:[{...person}];
+        let pi=ppl.findIndex(p=>p.name===pName);
+        if(pi<0){ppl.push({...person});pi=ppl.length-1;}
         if(pi<0)return;
         ppl[pi].leads=(ppl[pi].leads||[]).map(l=>l.id===leadId?{...l,salesmanNote:note}:l);
         data.people=ppl;
