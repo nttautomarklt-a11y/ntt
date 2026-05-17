@@ -261,7 +261,7 @@ function BarChart({vals,labels,colors,maxH=90}){
       <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
         <div style={{fontSize:11,fontWeight:700,color:colors?colors[i]:"#555"}}>{v}</div>
         <div style={{width:"100%",height:h,background:colors?colors[i]:"#1A6FAD",borderRadius:"4px 4px 0 0",transition:"height .4s",opacity:.9}}/>
-        <div style={{fontSize:9,color:"#888",textAlign:"center",lineHeight:1.1,maxWidth:44,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{labels[i]}</div>
+        <div style={{fontSize:9,color:"#888",textAlign:"center",lineHeight:1.2,maxWidth:50,wordBreak:"break-word"}}>{labels[i]}</div>
       </div>
     );})}
   </div>;
@@ -1178,10 +1178,10 @@ const Dashboard=memo(({pName,onLogout,appData})=>{
         {kpi("Applications",myApps,"month total","#1A6FAD")}
       </div>
       <Card title={"🏆 Tracker 1 – Monthly Units · Target "+(TARGET||9)}>
-        <Bar vals={teamPeople.map(p=>monthSales(p))} labels={teamPeople.map(p=>p.name.slice(0,6))} colors={teamPeople.map(p=>p.name===pName?pColor:BAR_COLORS[people.indexOf(p)])} maxH={80}/>
+        <Bar vals={teamPeople.map(p=>monthSales(p))} labels={teamPeople.map(p=>{const pts=p.name.trim().split(" ");return pts.length>1?pts[0]+"\n"+pts.slice(1).join(" "):p.name;})} colors={teamPeople.map(p=>p.name===pName?pColor:BAR_COLORS[people.indexOf(p)])} maxH={80}/>
       </Card>
       <Card title="🎯 Tracker 2 – Lead Conversion %">
-        <Bar vals={teamPeople.map(p=>convRate(p))} labels={teamPeople.map(p=>p.name.slice(0,6))} colors={teamPeople.map(p=>p.name===pName?pColor:BAR_COLORS[people.indexOf(p)])} maxH={80} suffix="%"/>
+        <Bar vals={teamPeople.map(p=>convRate(p))} labels={teamPeople.map(p=>{const pts=p.name.trim().split(" ");return pts.length>1?pts[0]+"\n"+pts.slice(1).join(" "):p.name;})} colors={teamPeople.map(p=>p.name===pName?pColor:BAR_COLORS[people.indexOf(p)])} maxH={80} suffix="%"/>
       </Card>
       <Card title={"🏆 Tracker 3 – Weekly Incentive · R"+((WEEKLY_PRIZE||2000).toLocaleString())} extra={
         <div style={{display:"flex",alignItems:"center",gap:4}}>
@@ -1198,7 +1198,7 @@ const Dashboard=memo(({pName,onLogout,appData})=>{
             <div style={{fontSize:11,color:"#555"}}>{myRank===1?"🥇 Leading!":myRank===2?"🥈 2nd":myRank===3?"🥉 3rd":"Position "+myRank}</div>
           </div>
         </div>
-        <Bar vals={vScores} labels={teamPeople.map(p=>p.name.slice(0,6))} colors={teamPeople.map(p=>p.name===pName?pColor:BAR_COLORS[people.indexOf(p)])} maxH={70}/>
+        <Bar vals={vScores} labels={teamPeople.map(p=>{const pts=p.name.trim().split(" ");return pts.length>1?pts[0]+"\n"+pts.slice(1).join(" "):p.name;})} colors={teamPeople.map(p=>p.name===pName?pColor:BAR_COLORS[people.indexOf(p)])} maxH={70}/>
       </Card>
       {(()=>{const Q=QUOTES||[];if(!Q.length)return null;const q=Q[Math.floor(Date.now()/86400000)%Q.length];return(
         <div style={{background:"#111",borderRadius:10,padding:"12px 14px",marginBottom:10,fontStyle:"italic",color:"#888",fontSize:11,lineHeight:1.7}}>
