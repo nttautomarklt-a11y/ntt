@@ -1254,15 +1254,26 @@ const Dashboard=memo(({pName,onLogout,appData})=>{
       ))}
     </div>
   );
-  const renderShorts=()=>(
-    <div className="fade">
+  const renderShorts=()=>{
+    const daily=(()=>{try{const d=localStorage.getItem("ntt_shorts_daily");return d?JSON.parse(d):[];}catch{return [];}})();
+    return(<div className="fade">
       <div style={{background:"linear-gradient(135deg,#111,#222)",borderRadius:12,padding:"12px 14px",marginBottom:10,color:"#fff"}}>
-        <div style={{fontSize:15,fontWeight:700}}>⚡ Shorts</div>
-        <div style={{fontSize:10,opacity:.7}}>Quick daily boosts</div>
+        <div style={{fontSize:15,fontWeight:700}}>⚡ Daily Shorts</div>
+        <div style={{fontSize:10,opacity:.7}}>Fresh content from your manager</div>
       </div>
-      <Card><div style={{textAlign:"center",padding:"16px",color:"#aaa",fontSize:12}}>Open the manager platform to view Shorts.</div></Card>
-    </div>
-  );
+      {daily.length===0
+        ?<div style={{background:"#fff",borderRadius:10,border:"1px solid #eee",padding:20,textAlign:"center",color:"#aaa",fontSize:12}}>No shorts pushed yet today. Check back soon!</div>
+        :daily.map(item=>(
+        <div key={item.id} style={{background:"#fff",borderRadius:10,border:"2px solid #C9A84C",marginBottom:10,overflow:"hidden",cursor:"pointer"}} onClick={()=>window.open("https://www.youtube.com/watch?v="+item.ytId,"_blank")}>
+          <img src={"https://img.youtube.com/vi/"+item.ytId+"/mqdefault.jpg"} style={{width:"100%",height:180,objectFit:"cover",display:"block"}} alt=""/>
+          <div style={{padding:"10px 12px"}}>
+            <div style={{fontWeight:700,fontSize:14,color:"#111",marginBottom:4}}>{item.title}</div>
+            <div style={{fontSize:11,color:"#aaa"}}>{item.date} · Tap to watch ▶</div>
+          </div>
+        </div>
+      ))}
+    </div>);
+  };
   const renderReports=()=>{
     const myDeals=soldUnits.filter(u=>u.pIdx===pIdx);
     const myGP=myDeals.reduce((a,u)=>a+(u.gp||0),0);
@@ -1418,6 +1429,7 @@ function SalesmanApp(){
           if(d.graphsP)try{localStorage.setItem("ntt_graphs_p",JSON.stringify(d.graphsP));}catch(e){}
           if(d.stock)try{localStorage.setItem("ntt_sl",JSON.stringify(d.stock));}catch(e){}
           if(d.stockDemo)try{localStorage.setItem("ntt_sl_demo",JSON.stringify(d.stockDemo));}catch(e){}
+          if(d.shorts)try{localStorage.setItem("ntt_shorts_daily",JSON.stringify(d.shorts));}catch(e){}
           setAppData(Object.assign({},ex));
         }catch(e){}
       }).catch(function(){});
