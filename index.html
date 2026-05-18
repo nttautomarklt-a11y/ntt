@@ -1022,7 +1022,7 @@ const [selLead,setSelLead]=useState(null);
         fbPushPath("people",ppl);
       }catch(e){}
     };
-    const open=myLeads.filter(l=>!l.sold&&l.leadStatus!=="declined");
+    const open=myLeads.filter(l=>!l.sold&&l.leadStatus!=="declined"&&l.leadStatus!=="cold");
     const declined=myLeads.filter(l=>l.leadStatus==="declined");
     const sold=myLeads.filter(l=>l.sold);
     return(
@@ -1034,7 +1034,7 @@ const [selLead,setSelLead]=useState(null);
             {[["active","✅ Active"],["cold","❄️ Cold"],["declined","🔴 Declined"]].map(function(pair){
               var f=pair[0],lbl=pair[1];
               var cnt=f==="active"
-                ?myLeads.filter(function(l){return l.leadStatus!=="cold"&&l.leadStatus!=="declined";}).length
+                ?myLeads.filter(function(l){return l.leadStatus!=="cold"&&l.leadStatus!=="declined"&&!l.sold;}).length
                 :myLeads.filter(function(l){return l.leadStatus===f;}).length;
               return(
                 <button key={f} onClick={function(){setLeadFolder(f);}} style={{flex:1,padding:"7px 4px",borderRadius:8,border:"none",
