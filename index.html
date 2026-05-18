@@ -1058,7 +1058,8 @@ const [selLead,setSelLead]=useState(null);
                 </div>
                 <button onClick={()=>setSelLead(null)} style={{border:"none",background:"none",fontSize:20,cursor:"pointer",color:"#aaa",padding:0}}>✕</button>
               </div>
-              {selLead.phone&&<div style={{fontSize:13,color:"#1A6FAD",marginBottom:6}}>📞 {selLead.phone}</div>}
+              {(selLead.cell||selLead.phone)&&<a href={"tel:"+(selLead.cell||selLead.phone)} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:"#f0f6ff",borderRadius:9,marginBottom:8,textDecoration:"none",color:"#1A6FAD",fontWeight:700,fontSize:14}}><span>📞</span><span>{selLead.cell||selLead.phone}</span></a>}
+              {selLead.email&&<a href={"mailto:"+selLead.email} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:"#f0fff4",borderRadius:9,marginBottom:8,textDecoration:"none",color:"#1E8449",fontWeight:600,fontSize:13}}><span>✉️</span><span>{selLead.email}</span></a>}
               {selLead.vehicle&&<div style={{fontSize:13,color:"#555",marginBottom:6}}>🚗 {selLead.vehicle}</div>}
               {selLead.source&&<div style={{fontSize:11,color:"#888",marginBottom:6}}>Source: {selLead.source}</div>}
               {selLead.notes&&<div style={{fontSize:12,color:"#888",fontStyle:"italic",marginBottom:10,lineHeight:1.6,background:"#f9f9f9",borderRadius:8,padding:"8px 10px"}}>📋 {selLead.notes}</div>}
