@@ -1399,14 +1399,14 @@ const LoginScreen=memo(({onLogin,people})=>{
 
 function SalesmanApp(){
   const [name,setName]=useState(window._nttUser||window._nttLoggedInAs||null);
-  const [appData,setAppData]=useState(()=>loadAppData()||{people:[],soldUnits:[],stock:[]});
+  const [appData,setAppData]=useState(()=>{var d=loadAppData()||{people:[],soldUnits:[],stock:[],stockDemo:[]};if(!d.stockDemo||!d.stockDemo.length){try{var sd=localStorage.getItem("ntt_sl_demo");if(sd)d.stockDemo=JSON.parse(sd);}catch{}}return d;});
   useEffect(()=>{
     // Firebase: load once then poll
     var loadFb=function(){
       fbPull().then(function(d){
         if(!d)return;
         try{
-          var ex=loadAppData()||{};
+          var ex=Object.assign({},loadAppData()||{});
           if(d.people&&d.people.length)ex.people=d.people;
           if(d.soldUnits)ex.soldUnits=d.soldUnits;
           if(d.stock)ex.stock=d.stock;
@@ -1418,7 +1418,7 @@ function SalesmanApp(){
           if(d.graphsP)try{localStorage.setItem("ntt_graphs_p",JSON.stringify(d.graphsP));}catch(e){}
           if(d.stock)try{localStorage.setItem("ntt_sl",JSON.stringify(d.stock));}catch(e){}
           if(d.stockDemo)try{localStorage.setItem("ntt_sl_demo",JSON.stringify(d.stockDemo));}catch(e){}
-          setAppData(ex);
+          setAppData(Object.assign({},ex));
         }catch(e){}
       }).catch(function(){});
     };
