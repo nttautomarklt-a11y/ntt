@@ -1264,8 +1264,8 @@ const Dashboard=memo(({pName,onLogout,appData})=>{
       {daily.length===0
         ?<div style={{background:"#fff",borderRadius:10,border:"1px solid #eee",padding:20,textAlign:"center",color:"#aaa",fontSize:12}}>No shorts pushed yet today. Check back soon!</div>
         :daily.map(item=>(
-        <div key={item.id} style={{background:"#fff",borderRadius:10,border:"2px solid #C9A84C",marginBottom:10,overflow:"hidden",cursor:"pointer"}} onClick={()=>window.open("https://www.youtube.com/watch?v="+item.ytId,"_blank")}>
-          <img src={"https://img.youtube.com/vi/"+item.ytId+"/mqdefault.jpg"} style={{width:"100%",height:180,objectFit:"cover",display:"block"}} alt=""/>
+        <div key={item.id} style={{background:"#fff",borderRadius:10,border:"2px solid #C9A84C",marginBottom:10,overflow:"hidden",cursor:"pointer"}} onClick={()=>window.open(item.url||(item.ytId?"https://www.youtube.com/watch?v="+item.ytId:"#"),"_blank")}>
+          {item.ytId?<img src={"https://img.youtube.com/vi/"+item.ytId+"/mqdefault.jpg"} style={{width:"100%",height:180,objectFit:"cover",display:"block"}} alt=""/>:<div style={{width:"100%",height:120,background:item.platform==="tiktok"?"#000":"#222",display:"flex",alignItems:"center",justifyContent:"center",fontSize:48}}>{item.platform==="tiktok"?"♪":"🎬"}</div>}
           <div style={{padding:"10px 12px"}}>
             <div style={{fontWeight:700,fontSize:14,color:"#111",marginBottom:4}}>{item.title}</div>
             <div style={{fontSize:11,color:"#aaa"}}>{item.date} · Tap to watch ▶</div>
