@@ -989,7 +989,7 @@ const [selLead,setSelLead]=useState(null);
         const raw=localStorage.getItem(SAVE_KEY);
         const data=raw?JSON.parse(raw):{people:[{...person}]};
         const ppl=data.people&&data.people.length?data.people:[{...person}];
-        let pi=ppl.findIndex(p=>p.name===pName);
+        let pi=ppl.findIndex(p=>p.name&&p.name.toLowerCase()===pName.toLowerCase());
         if(pi<0){ppl.push({...person});pi=ppl.length-1;}
         if(pi<0)return;
         ppl[pi]={...ppl[pi],leads:myLeads.map(l=>l.id===leadId?{...l,salesmanNote:note}:l)};
@@ -1014,7 +1014,7 @@ const [selLead,setSelLead]=useState(null);
         const raw=localStorage.getItem(SAVE_KEY);
         const data=raw?JSON.parse(raw):{people:[]};
         const ppl=data.people&&data.people.length?[...data.people]:[{...person}];
-        const pi=ppl.findIndex(p=>p.name===pName);
+        const pi=ppl.findIndex(p=>p.name&&p.name.toLowerCase()===pName.toLowerCase());
         if(pi>=0)ppl[pi]={...ppl[pi],leads:updatedLeads};
         else ppl.push({...person,leads:updatedLeads});
         data.people=ppl;
@@ -1136,7 +1136,7 @@ const Dashboard=memo(({pName,onLogout,appData})=>{
   const [vwk,setVwk]=useState(()=>getCurWeek());
   const cwk=getCurWeek();
   const people=(appData.people)||[];
-  const pIdx=Math.max(0,people.findIndex(p=>p.name===pName));
+  const pIdx=(()=>{var i=people.findIndex(p=>p.name&&p.name.toLowerCase()===(pName||"").toLowerCase());return i>=0?i:people.findIndex(p=>p.name===pName)>=0?people.findIndex(p=>p.name===pName):0;})();
   const person=people[pIdx]||{name:pName,weeks:[{sales:0,leadsClosed:0,applications:0,trainingPoints:0}],leads:[]};
   const pColor=BAR_COLORS[pIdx]||"#C9A84C";
   const teamPeople=people.filter(p=>!p.isOtherDept);
@@ -1446,7 +1446,30 @@ function SalesmanApp(){
   if(!name)return<LoginScreen onLogin={login} people={people}/>;
   return<Dashboard pName={name} onLogout={logout} appData={appData}/>;
 }
-ReactDOM.createRoot(document.getElementById("root")).render(<SalesmanApp/>);
+
+// ── ERROR BOUNDARY ────────────────────────────────────────────────────────────
+class ErrorBoundary extends React.Component {
+  constructor(props){super(props);this.state={err:null};}
+  static getDerivedStateFromError(e){return {err:e};}
+  componentDidCatch(e,info){console.error('NTT crash:',e,info);}
+  render(){
+    if(this.state.err){
+      return(
+        <div style={{minHeight:'100vh',background:'#0a0a0a',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div style={{background:'#fff',borderRadius:16,padding:24,maxWidth:360,width:'100%',textAlign:'center'}}>
+            <div style={{fontSize:36,marginBottom:12}}>⚠️</div>
+            <div style={{fontSize:16,fontWeight:800,marginBottom:8}}>Something went wrong</div>
+            <div style={{fontSize:12,color:'#888',marginBottom:20}}>Your data is safe. Tap below to reload.</div>
+            <button onClick={function(){window.location.reload();}} style={{width:'100%',padding:'12px',borderRadius:9,border:'none',background:'#1A6FAD',color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer'}}>Reload App</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<ErrorBoundary><SalesmanApp/></ErrorBoundary>);
 
 </script>
 </body>
