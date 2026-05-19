@@ -775,7 +775,8 @@ const GraphsPanel=memo(({pColor,pName})=>{
   ];
   const [active,setActive]=useState("units");
   const [teamData]=useState(function(){try{var d=localStorage.getItem("ntt_graphs");return d?JSON.parse(d):{};}catch(e){return{};}});
-  const [pData]=useState(function(){try{var d=localStorage.getItem("ntt_graphs_p");return d?JSON.parse(d):{};}catch(e){return{};}});
+  const [pData,setPData]=useState(function(){try{var d=localStorage.getItem("ntt_graphs_p");return d?JSON.parse(d):{};}catch(e){return{};}});
+  useEffect(function(){function syncP(){try{var d=localStorage.getItem("ntt_graphs_p");if(d)setPData(JSON.parse(d));}catch(e){}};syncP();var iv=setInterval(syncP,5000);return function(){clearInterval(iv);};},[]);
   const metric=METRICS.find(function(m){return m.key===active;})||METRICS[0];
   const col=metric.color;const pre=metric.prefix;
   const tVals=MO.map(function(m){return parseFloat(((teamData[active]||{})[m]||"").replace(/[^0-9.]/g,""))||0;});
