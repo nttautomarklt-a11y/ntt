@@ -1007,7 +1007,7 @@ const [selLead,setSelLead]=useState(null);
       return s||STATUSES[0];
     };
     const updateStatus=(leadId,newStatus)=>{
-      const updatedLeads=myLeads.map(l=>l.id===leadId?{...l,leadStatus:newStatus}:l);
+      const updatedLeads=myLeads.map(l=>l.id===leadId?Object.assign({},l,{leadStatus:newStatus},(newStatus==="delivered"?{deliveredWk:getCurWeek(),deliveredAt:Date.now()}:{})):l);
       setMyLeads(updatedLeads);
       setSelLead(sl=>sl&&sl.id===leadId?{...sl,leadStatus:newStatus}:sl);
       try{
@@ -1460,7 +1460,9 @@ class ErrorBoundary extends React.Component {
             <div style={{fontSize:36,marginBottom:12}}>⚠️</div>
             <div style={{fontSize:16,fontWeight:800,marginBottom:8}}>Something went wrong</div>
             <div style={{fontSize:12,color:'#888',marginBottom:20}}>Your data is safe. Tap below to reload.</div>
-            <button onClick={function(){window.location.reload();}} style={{width:'100%',padding:'12px',borderRadius:9,border:'none',background:'#1A6FAD',color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer'}}>Reload App</button>
+            <button onClick={function(){window.location.reload();}} style={{width:'100%',padding:'12px',borderRadius:9,border:'none',background:'#1A6FAD',color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',marginBottom:10}}>Reload App</button>
+            <button onClick={function(){try{localStorage.removeItem('ntt_v19_data');}catch(e){}window.location.reload();}} style={{width:'100%',padding:'12px',borderRadius:9,border:'1px solid #e57373',background:'#fff',color:'#C0392B',fontSize:13,fontWeight:700,cursor:'pointer'}}>Clear Cache &amp; Reload</button>
+            <div style={{fontSize:10,color:'#aaa',marginTop:8}}>Use Clear Cache only if Reload does not work. Your data is saved to the cloud.</div>
           </div>
         </div>
       );
