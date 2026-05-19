@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>NTT F&I Dashboard</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;color:#111;}
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:#f0f0f0;}
+::-webkit-scrollbar-thumb{background:#ccc;border-radius:3px;}
+input,textarea,select{font-family:inherit;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+var FB_URL='https://ntt-automark-default-rtdb.firebaseio.com';
+var FB_KEY='AIzaSyCXyVGftSYpeYgR1-Cb6yaY5EE6pfOLSXI';
+var FB_PATH=FB_URL+'/ntt.json?auth='+FB_KEY;
+var FI_PATH=FB_URL+'/fi_data.json?auth='+FB_KEY;
+var FI_PW='nttfi2026';
+
+function fbPull(){
+  return fetch(FB_PATH).then(function(r){return r.json();}).catch(function(){return null;});
+}
+function fiPull(){
+  return fetch(FI_PATH).then(function(r){return r.json();}).catch(function(){return null;});
+}
+function fiPush(data){
+  return fetch(FI_PATH,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).catch(function(){});
+}
+</script>
+<script type="text/babel">
+const {useState,useEffect,useCallback,useRef,memo}=React;
+
+const STATUS_CONFIG={
+  active:   {label:'ACTIVE',        bg:'#e8f5e9',col:'#1E8449',border:'#81c784'},
+  awaiting_docs:{label:'AWAITING DOCS', bg:'#fff8e1',col:'#F57F17',border:'#ffcc02'},
+  approved: {label:'APPROVED',       bg:'#e3f2fd',col:'#1565C0',border:'#90caf9'},
+  delivered:{label:'DELIVERED',      bg:'#f3e5f5',col:'#6A0DAD',border:'#ce93d8'},
+  declined: {label:'DECLINED',       bg:'#fce4ec',col:'#C0392B',border:'#e57373'},
+};
+
+function stCfg(s){return STATUS_CONFIG[s]||STATUS_CONFIG.active;}
+function getName(l){return [l.firstName,l.lastName].filter(Boolean).join(' ')||l.name||'Unknown';}
+function getPhone(l){return l.cell||l.phone||'';}
+
+// ── LOGIN ─────────────────────────────────────────────────────────────────────
+function LoginScreen({onLogin}){
+  const [pw,setPw]=useState('');
+  const [err,setErr]=useState('');
+  const submit=()=>{
+    if(pw===FI_PW){onLogin();}
+    else{setErr('Incorrect password');setPw('');}
+  };
+  return(
+    <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#1A6FAD 0%,#0d4a7a 100%)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div style={{background:'#fff',borderRadius:16,padding:'40px 48px',width:420,boxShadow:'0 20px 60px rgba(0,0,0,.3)'}}>
+        <div style={{textAlign:'center',marginBottom:32}}>
+          <div style={{fontSize:48,marginBottom:12}}>🏦</div>
+          <div style={{fontSize:22,fontWeight:900,color:'#111'}}>NTT F&I Dashboard</div>
+          <div style={{fontSize:13,color:'#888',marginTop:4}}>NTT Toyota Louis Trichardt</div>
+        </div>
+        <input
+          type="password" value={pw} placeholder="Enter F&I password"
+          onChange={e=>setPw(e.target.value)}
+          onKeyDown={e=>e.key==='Enter'&&submit()}
+          style={{width:'100%',padding:'12px 14px',borderRadius:9,border:'1px solid #ddd',fontSize:15,marginBottom:12,outline:'none'}}
+          autoFocus
+        />
+        {err&&<div style={{color:'#C0392B',fontSize:12,marginBottom:10}}>{err}</div>}
+        <button onClick={submit} style={{width:'100%',padding:14,borderRadius:9,border:'none',background:'#1A6FAD',color:'#fff',fontSize:15,fontWeight:700,cursor:'pointer'}}>
+          Sign In
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── MAIN APP ──────────────────────────────────────────────────────────────────
+function FIApp(){
+  const [loggedIn,setLoggedIn]=useState(false);
+  const [appData,setAppData]=useState(null); // from Firebase ntt
+  const [fiData,setFiData]=useState({});     // from Firebase fi_data
+  const [tab,setTab]=useState('all');
+  const [selLead,setSelLead]=useState(null);
+  const [search,setSearch]=useState('');
+  const [sortBy,setSortBy]=useState('name');
+  const [lastSync,setLastSync]=useState(null);
+
+  // Load both Firebase sources on login
+  useEffect(()=>{
+    if(!loggedIn)return;
+    function load(){
+      Promise.all([fbPull(),fiPull()]).then(function([ntt,fi]){
+        if(ntt)setAppData(ntt);
+        if(fi&&typeof fi==='object')setFiData(fi);
+        setLastSync(new Date());
+      });
+    }
+    load();
+    var interval=setInterval(load,30000);
+    return ()=>clearInterval(interval);
+  },[loggedIn]);
+
+  const saveFiData=useCallback(function(newFi){
+    setFiData(newFi);
+    fiPush(newFi);
+  },[]);
+
+  const updateLead=useCallback(function(leadId,status,notes){
+    var newFi=Object.assign({},fiData,{
+      [leadId]:Object.assign({},fiData[leadId]||{},{
+        status:status,
+        notes:notes!==undefined?notes:(fiData[leadId]||{}).notes||'',
+        updatedAt:new Date().toISOString(),
+        updatedAtMs:Date.now()
+      })
+    });
+    saveFiData(newFi);
+  },[fiData,saveFiData]);
+
+  const deleteLead=useCallback(function(leadId){
+    var newFi=Object.assign({},fiData,{[leadId]:{deleted:true,updatedAt:new Date().toISOString()}});
+    saveFiData(newFi);
+  },[fiData,saveFiData]);
+
+  if(!loggedIn)return <LoginScreen onLogin={()=>setLoggedIn(true)}/>;
+  if(!appData)return(
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f0f2f5'}}>
+      <div style={{textAlign:'center',color:'#888'}}>
+        <div style={{fontSize:32,marginBottom:12}}>🔄</div>
+        <div style={{fontSize:16}}>Loading data from Firebase...</div>
+      </div>
+    </div>
+  );
+
+  // Flatten all leads from all salespeople
+  var allLeads=[];
+  var people=appData.people||[];
+  people.forEach(function(person){
+    if(!person||person.isOtherDept)return;
+    (person.leads||[]).forEach(function(lead){
+      allLeads.push(Object.assign({},lead,{_salesPerson:person.name,_fiData:fiData[lead.id]||null}));
+    });
+  });
+
+  // Filter out deleted
+  var visibleLeads=allLeads.filter(function(l){
+    return !(l._fiData&&l._fiData.deleted);
+  });
+
+  // Apply tab filter
+  var tabLeads;
+  if(tab==='all'){
+    tabLeads=visibleLeads.filter(function(l){
+      var s=(l._fiData&&l._fiData.status)||'active';
+      return s!=='declined';
+    });
+  } else if(tab==='declined'){
+    tabLeads=visibleLeads.filter(function(l){return (l._fiData&&l._fiData.status)==='declined';});
+  } else {
+    tabLeads=visibleLeads.filter(function(l){return (l._fiData&&l._fiData.status||'active')===tab;});
+  }
+
+  // Search
+  if(search.trim()){
+    var q=search.trim().toLowerCase();
+    tabLeads=tabLeads.filter(function(l){
+      return getName(l).toLowerCase().includes(q)||
+        (l.vehicle||'').toLowerCase().includes(q)||
+        (l._salesPerson||'').toLowerCase().includes(q)||
+        getPhone(l).includes(q);
+    });
+  }
+
+  // Sort
+  tabLeads=tabLeads.slice().sort(function(a,b){
+    if(sortBy==='name')return getName(a).localeCompare(getName(b));
+    if(sortBy==='sales')return (a._salesPerson||'').localeCompare(b._salesPerson||'');
+    if(sortBy==='status'){
+      var as=(a._fiData&&a._fiData.status)||'active';
+      var bs2=(b._fiData&&b._fiData.status)||'active';
+      return as.localeCompare(bs2);
+    }
+    if(sortBy==='updated'){
+      var at=(a._fiData&&a._fiData.updatedAtMs)||0;
+      var bt=(b._fiData&&b._fiData.updatedAtMs)||0;
+      return bt-at;
+    }
+    return 0;
+  });
+
+  // Stats
+  var counts={
+    all:visibleLeads.filter(l=>!(l._fiData&&l._fiData.status==='declined')).length,
+    active:visibleLeads.filter(l=>(l._fiData&&l._fiData.status||'active')==='active').length,
+    awaiting_docs:visibleLeads.filter(l=>(l._fiData&&l._fiData.status)==='awaiting_docs').length,
+    approved:visibleLeads.filter(l=>(l._fiData&&l._fiData.status)==='approved').length,
+    delivered:visibleLeads.filter(l=>(l._fiData&&l._fiData.status)==='delivered').length,
+    declined:visibleLeads.filter(l=>(l._fiData&&l._fiData.status)==='declined').length,
+  };
+
+  var TABS=[
+    {key:'all',label:'All Leads',count:counts.all,col:'#1A6FAD'},
+    {key:'active',label:'Active',count:counts.active,col:'#1E8449'},
+    {key:'awaiting_docs',label:'Awaiting Docs',count:counts.awaiting_docs,col:'#F57F17'},
+    {key:'approved',label:'Approved',count:counts.approved,col:'#1565C0'},
+    {key:'delivered',label:'Delivered',count:counts.delivered,col:'#6A0DAD'},
+    {key:'declined',label:'Declined',count:counts.declined,col:'#C0392B'},
+  ];
+
+  return(
+    <div style={{minHeight:'100vh',background:'#f0f2f5'}}>
+      {/* HEADER */}
+      <div style={{background:'linear-gradient(135deg,#1A6FAD,#0d4a7a)',padding:'0 32px',display:'flex',alignItems:'center',justifyContent:'space-between',height:56,position:'sticky',top:0,zIndex:100,boxShadow:'0 2px 8px rgba(0,0,0,.2)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          <span style={{fontSize:22}}>🏦</span>
+          <div>
+            <div style={{color:'#fff',fontWeight:800,fontSize:16}}>F&I Dashboard</div>
+            <div style={{color:'rgba(255,255,255,.6)',fontSize:11}}>NTT Toyota Louis Trichardt</div>
+          </div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:16}}>
+          {lastSync&&<div style={{color:'rgba(255,255,255,.6)',fontSize:11}}>Last sync: {lastSync.toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'})}</div>}
+          <button onClick={()=>{fbPull().then(d=>{if(d)setAppData(d);});fiPull().then(d=>{if(d&&typeof d==='object')setFiData(d);});setLastSync(new Date());}} style={{padding:'6px 14px',borderRadius:7,border:'1px solid rgba(255,255,255,.3)',background:'transparent',color:'#fff',cursor:'pointer',fontSize:12}}>🔄 Refresh</button>
+          <button onClick={()=>setLoggedIn(false)} style={{padding:'6px 14px',borderRadius:7,border:'1px solid rgba(255,255,255,.3)',background:'transparent',color:'#fff',cursor:'pointer',fontSize:12}}>Sign Out</button>
+        </div>
+      </div>
+
+      <div style={{display:'flex',height:'calc(100vh - 56px)'}}>
+        {/* LEFT: TABLE */}
+        <div style={{flex:selLead?'0 0 58%':'1',display:'flex',flexDirection:'column',overflow:'hidden',transition:'flex .2s'}}>
+          {/* STATS BAR */}
+          <div style={{display:'flex',gap:10,padding:'14px 20px 10px',flexWrap:'wrap'}}>
+            {TABS.map(function(t2){return(
+              <button key={t2.key} onClick={()=>setTab(t2.key)} style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'10px 16px',borderRadius:10,border:'2px solid '+(tab===t2.key?t2.col:'#e0e0e0'),background:tab===t2.key?t2.col+'11':'#fff',cursor:'pointer',minWidth:100,transition:'all .15s'}}>
+                <div style={{fontSize:22,fontWeight:900,color:t2.col}}>{t2.count}</div>
+                <div style={{fontSize:11,fontWeight:600,color:tab===t2.key?t2.col:'#666'}}>{t2.label}</div>
+              </button>
+            );})}
+          </div>
+
+          {/* SEARCH + SORT */}
+          <div style={{display:'flex',gap:10,padding:'0 20px 10px',alignItems:'center'}}>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍  Search name, vehicle, salesperson, phone..." style={{flex:1,padding:'8px 12px',borderRadius:8,border:'1px solid #ddd',fontSize:13,outline:'none',background:'#fff'}}/>
+            <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={{padding:'8px 10px',borderRadius:8,border:'1px solid #ddd',fontSize:13,background:'#fff',outline:'none'}}>
+              <option value="name">Sort: Name</option>
+              <option value="sales">Sort: Salesperson</option>
+              <option value="status">Sort: Status</option>
+              <option value="updated">Sort: Last Updated</option>
+            </select>
+            <div style={{fontSize:12,color:'#888',whiteSpace:'nowrap'}}>{tabLeads.length} leads</div>
+          </div>
+
+          {/* TABLE */}
+          <div style={{flex:1,overflowY:'auto',padding:'0 20px 20px'}}>
+            <div style={{background:'#fff',borderRadius:12,border:'1px solid #e0e0e0',overflow:'hidden',boxShadow:'0 1px 4px rgba(0,0,0,.06)'}}>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+                <thead>
+                  <tr style={{background:'#1A6FAD',color:'#fff',position:'sticky',top:0}}>
+                    {['Client','Phone','Vehicle','Salesperson','Status','F&I Notes','Updated'].map(h=>(
+                      <th key={h} style={{padding:'10px 12px',textAlign:'left',fontWeight:700,whiteSpace:'nowrap',fontSize:12}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tabLeads.length===0&&(
+                    <tr><td colSpan={7} style={{padding:40,textAlign:'center',color:'#aaa'}}>No leads in this category.</td></tr>
+                  )}
+                  {tabLeads.map(function(lead,i){
+                    var fi=lead._fiData||{};
+                    var st=stCfg(fi.status||'active');
+                    var isSelected=selLead&&selLead.id===lead.id;
+                    return(
+                      <tr key={lead.id} onClick={()=>setSelLead(lead)} style={{background:isSelected?'#e3f2fd':i%2===0?'#fafafa':'#fff',cursor:'pointer',borderBottom:'1px solid #f0f0f0',transition:'background .1s'}}>
+                        <td style={{padding:'10px 12px',fontWeight:600,color:'#111'}}>{getName(lead)}</td>
+                        <td style={{padding:'10px 12px',color:'#1A6FAD',fontWeight:600}}>
+                          {getPhone(lead)?<a href={'tel:'+getPhone(lead)} onClick={e=>e.stopPropagation()} style={{color:'#1A6FAD',textDecoration:'none'}}>{getPhone(lead)}</a>:'-'}
+                        </td>
+                        <td style={{padding:'10px 12px',color:'#555',maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{lead.vehicle||'-'}</td>
+                        <td style={{padding:'10px 12px',color:'#555'}}>{lead._salesPerson||'-'}</td>
+                        <td style={{padding:'10px 12px'}}>
+                          <span style={{padding:'3px 10px',borderRadius:99,background:st.bg,color:st.col,fontWeight:700,fontSize:11,border:'1px solid '+st.border,whiteSpace:'nowrap'}}>{st.label}</span>
+                        </td>
+                        <td style={{padding:'10px 12px',color:'#888',maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontSize:12}}>{fi.notes||'-'}</td>
+                        <td style={{padding:'10px 12px',color:'#aaa',fontSize:11,whiteSpace:'nowrap'}}>{fi.updatedAt?new Date(fi.updatedAt).toLocaleDateString('en-ZA'):'-'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT: DETAIL PANEL */}
+        {selLead&&(
+          <DetailPanel
+            lead={selLead}
+            fiEntry={fiData[selLead.id]||{}}
+            onUpdate={updateLead}
+            onDelete={deleteLead}
+            onClose={()=>setSelLead(null)}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── DETAIL PANEL ──────────────────────────────────────────────────────────────
+const DetailPanel=memo(function({lead,fiEntry,onUpdate,onDelete,onClose}){
+  const [status,setStatus]=useState(fiEntry.status||'active');
+  const [notes,setNotes]=useState(fiEntry.notes||'');
+  const [saved,setSaved]=useState(false);
+
+  // sync if lead changes
+  useEffect(()=>{
+    setStatus(fiEntry.status||'active');
+    setNotes(fiEntry.notes||'');
+    setSaved(false);
+  },[lead.id,fiEntry.status,fiEntry.notes]);
+
+  function save(){
+    onUpdate(lead.id,status,notes);
+    setSaved(true);
+    setTimeout(()=>setSaved(false),2000);
+  }
+
+  function handleDelete(){
+    if(window.confirm('Remove "'+getName(lead)+'" from your F&I list? This cannot be undone.'))onDelete(lead.id);
+    onClose();
+  }
+
+  var st=stCfg(status);
+
+  var STATUSES=[
+    {key:'active',label:'ACTIVE',col:'#1E8449'},
+    {key:'awaiting_docs',label:'AWAITING DOCS',col:'#F57F17'},
+    {key:'approved',label:'APPROVED',col:'#1565C0'},
+    {key:'delivered',label:'DELIVERED',col:'#6A0DAD'},
+    {key:'declined',label:'DECLINED',col:'#C0392B'},
+  ];
+
+  var phone=getPhone(lead);
+  var email=lead.email||'';
+
+  return(
+    <div style={{flex:'0 0 42%',background:'#fff',borderLeft:'1px solid #e0e0e0',display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'-4px 0 20px rgba(0,0,0,.08)'}}>
+      {/* Panel header */}
+      <div style={{padding:'16px 20px',borderBottom:'1px solid #f0f0f0',display:'flex',justifyContent:'space-between',alignItems:'flex-start',background:'#fafafa'}}>
+        <div>
+          <div style={{fontSize:20,fontWeight:900,color:'#111'}}>{getName(lead)}</div>
+          <div style={{fontSize:13,color:'#888',marginTop:3}}>{lead.vehicle||'No vehicle recorded'}</div>
+          <div style={{marginTop:6,display:'flex',gap:6,alignItems:'center'}}>
+            <span style={{padding:'3px 10px',borderRadius:99,background:st.bg,color:st.col,fontWeight:700,fontSize:11,border:'1px solid '+st.border}}>{st.label}</span>
+            <span style={{fontSize:12,color:'#aaa'}}>via {lead._salesPerson||'Unknown'}</span>
+          </div>
+        </div>
+        <button onClick={onClose} style={{border:'none',background:'none',fontSize:20,cursor:'pointer',color:'#aaa',padding:4}}>✕</button>
+      </div>
+
+      <div style={{flex:1,overflowY:'auto',padding:'0 20px 20px'}}>
+        {/* Client Info */}
+        <div style={{marginTop:16,background:'#f8f9fa',borderRadius:10,padding:'14px 16px',marginBottom:14}}>
+          <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:10,letterSpacing:.5}}>CLIENT DETAILS</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            {[
+              ['Full Name',getName(lead)],
+              ['Phone',phone?<a href={'tel:'+phone} style={{color:'#1A6FAD',fontWeight:700,textDecoration:'none'}}>{phone}</a>:'-'],
+              ['Email',email?<a href={'mailto:'+email} style={{color:'#1A6FAD',textDecoration:'none'}}>{email}</a>:'-'],
+              ['Vehicle',lead.vehicle||'-'],
+              ['Source',lead.source||'-'],
+              ['Salesperson',lead._salesPerson||'-'],
+            ].map(function([label,val]){return(
+              <div key={label}>
+                <div style={{fontSize:10,color:'#999',marginBottom:2,fontWeight:600}}>{label}</div>
+                <div style={{fontSize:13,color:'#111',fontWeight:500}}>{val}</div>
+              </div>
+            );})}
+          </div>
+        </div>
+
+        {/* Salesman notes */}
+        {lead.notes&&(
+          <div style={{background:'#fffbf0',borderRadius:10,padding:'12px 14px',marginBottom:14,border:'1px solid #ffe082'}}>
+            <div style={{fontSize:12,fontWeight:700,color:'#F57F17',marginBottom:6}}>📝 SALESMAN NOTES</div>
+            <div style={{fontSize:13,color:'#555',lineHeight:1.5}}>{lead.notes}</div>
+          </div>
+        )}
+        {lead.salesmanNote&&(
+          <div style={{background:'#fffbf0',borderRadius:10,padding:'12px 14px',marginBottom:14,border:'1px solid #ffe082'}}>
+            <div style={{fontSize:12,fontWeight:700,color:'#F57F17',marginBottom:6}}>📝 SALESMAN UPDATE</div>
+            <div style={{fontSize:13,color:'#555',lineHeight:1.5}}>{lead.salesmanNote}</div>
+          </div>
+        )}
+
+        {/* F&I Status */}
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8,letterSpacing:.5}}>F&I STATUS</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            {STATUSES.map(function(s){return(
+              <button key={s.key} onClick={()=>setStatus(s.key)} style={{padding:'10px 8px',borderRadius:9,border:'2px solid '+(status===s.key?s.col:'#e0e0e0'),background:status===s.key?s.col+'15':'#fafafa',color:status===s.key?s.col:'#555',cursor:'pointer',fontSize:12,fontWeight:status===s.key?800:500,textAlign:'center',transition:'all .15s'}}>
+                {s.label}
+              </button>
+            );})}
+          </div>
+        </div>
+
+        {/* F&I Notes */}
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:6,letterSpacing:.5}}>F&I NOTES</div>
+          <textarea
+            value={notes}
+            onChange={e=>setNotes(e.target.value)}
+            rows={5}
+            placeholder="Add your notes about this client, documents requested, conditions, etc..."
+            style={{width:'100%',padding:'10px 12px',borderRadius:9,border:'1px solid #ddd',fontSize:13,resize:'vertical',outline:'none',lineHeight:1.5,fontFamily:'inherit'}}
+          />
+        </div>
+
+        {/* Prev F&I updates */}
+        {fiEntry.updatedAt&&(
+          <div style={{fontSize:11,color:'#bbb',marginBottom:14}}>
+            Last updated: {new Date(fiEntry.updatedAt).toLocaleString('en-ZA')}
+          </div>
+        )}
+      </div>
+
+      {/* Action buttons */}
+      <div style={{padding:'14px 20px',borderTop:'1px solid #f0f0f0',display:'flex',gap:10,background:'#fafafa'}}>
+        <button onClick={save} style={{flex:1,padding:'11px 0',borderRadius:9,border:'none',background:saved?'#1E8449':'#1A6FAD',color:'#fff',fontWeight:700,fontSize:14,cursor:'pointer',transition:'background .2s'}}>
+          {saved?'✓ Saved!':'Save Changes'}
+        </button>
+        <button onClick={handleDelete} style={{padding:'11px 16px',borderRadius:9,border:'1px solid #ffcccc',background:'#fff',color:'#C0392B',fontWeight:700,fontSize:13,cursor:'pointer'}}>
+          🗑 Delete
+        </button>
+      </div>
+    </div>
+  );
+});
+
+ReactDOM.createRoot(document.getElementById('root')).render(<FIApp/>);
+</script>
+</body>
+</html>
