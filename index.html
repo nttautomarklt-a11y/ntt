@@ -779,14 +779,14 @@ const GraphsPanel=memo(({pColor,pName})=>{
   const metric=METRICS.find(function(m){return m.key===active;})||METRICS[0];
   const col=metric.color;const pre=metric.prefix;
   const tVals=MO.map(function(m){return parseFloat(((teamData[active]||{})[m]||"").replace(/[^0-9.]/g,""))||0;});
-  const myRaw=((pData[pName]||{})[active])||{};
+  const pKey=Object.keys(pData).find(function(k){return k.toUpperCase()===(pName||"").toUpperCase();})||pName;const myRaw=((pData[pKey]||{})[active])||{};
   const myVals=MO.map(function(m){return parseFloat((myRaw[m]||"").replace(/[^0-9.]/g,""))||0;});
   const fmtV=function(v){return v>=1000000?(v/1000000).toFixed(1)+"m":v>=1000?Math.round(v/1000)+"k":String(v);};
   const sumV=function(a){return a.reduce(function(s,v){return s+v;},0);};
   const avgV=function(a){var nz=a.filter(function(v){return v>0;});return nz.length?Math.round(sumV(nz)/nz.length):0;};
   const hasMyData=myVals.some(function(v){return v>0;});
-  const myGPVals=MO.map(function(m){return parseFloat((((pData[pName]||{})["gp"]||{})[m]||"").replace(/[^0-9.]/g,""))||0;});
-  const myUVals=MO.map(function(m){return parseFloat((((pData[pName]||{})["units"]||{})[m]||"").replace(/[^0-9.]/g,""))||0;});
+  const myGPVals=MO.map(function(m){return parseFloat((((pData[pKey]||{})["gp"]||{})[m]||"").replace(/[^0-9.]/g,""))||0;});
+  const myUVals=MO.map(function(m){return parseFloat((((pData[pKey]||{})["units"]||{})[m]||"").replace(/[^0-9.]/g,""))||0;});
   const tGPVals=MO.map(function(m){return parseFloat(((teamData["gp"]||{})[m]||"").replace(/[^0-9.]/g,""))||0;});
   const tUVals=MO.map(function(m){return parseFloat(((teamData["units"]||{})[m]||"").replace(/[^0-9.]/g,""))||0;});
   const renderBars=function(vals,c,h){
