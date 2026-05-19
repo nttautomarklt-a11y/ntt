@@ -780,7 +780,7 @@ const GraphsPanel=memo(({pColor,pName})=>{
   const metric=METRICS.find(function(m){return m.key===active;})||METRICS[0];
   const col=metric.color;const pre=metric.prefix;
   const tVals=MO.map(function(m){return parseFloat(((teamData[active]||{})[m]||"").replace(/[^0-9.]/g,""))||0;});
-  const pKey=Object.keys(pData).find(function(k){return k.toUpperCase()===(pName||"").toUpperCase();})||pName;const myRaw=((pData[pKey]||{})[active])||{};
+  const pKey=(function(){var n=(pName||"").toUpperCase();var n1=n.split(" ")[0];var keys=Object.keys(pData);return keys.find(function(k){return k.toUpperCase()===n;})||keys.find(function(k){return k.toUpperCase()===n1;})||keys.find(function(k){return n.startsWith(k.toUpperCase());})||pName;})();const myRaw=((pData[pKey]||{})[active])||{};
   const myVals=MO.map(function(m){return parseFloat((myRaw[m]||"").replace(/[^0-9.]/g,""))||0;});
   const fmtV=function(v){return v>=1000000?(v/1000000).toFixed(1)+"m":v>=1000?Math.round(v/1000)+"k":String(v);};
   const sumV=function(a){return a.reduce(function(s,v){return s+v;},0);};
