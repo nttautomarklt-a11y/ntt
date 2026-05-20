@@ -977,6 +977,8 @@ const LeadsPanel=memo(({person,pName,pColor})=>{
 const [selLead,setSelLead]=useState(null);
     const [noteText,setNoteText]=useState("");
     const [noteSaved,setNoteSaved]=useState(false);
+    const [showFutureModal,setShowFutureModal]=useState(false);
+    const [futureDateInput,setFutureDateInput]=useState("");
     const [myLeads,setMyLeads]=useState(()=>(person.leads||[]).slice().sort((a,b)=>new Date(b.ts||0)-new Date(a.ts||0)));
     const [leadFolder,setLeadFolder]=useState("active");
     const STATUSES=[
@@ -985,6 +987,13 @@ const [selLead,setSelLead]=useState(null);
       {key:"future",label:"🟡 Future",bg:"#fffde7",col:"#F9A825"},
       {key:"declined",label:"🔴 Declined",bg:"#fce4ec",col:"#C0392B"},
     ];
+     const confirmFutureDate=(leadId,dateStr)=>{
+      const upd=myLeads.map(l=>l.id===leadId?{...l,leadStatus:"future",futureDate:dateStr,futureDateMs:dateStr?new Date(dateStr).getTime():null}:l);
+      setMyLeads(upd);setSelLead(sl=>sl&&sl.id===leadId?{...sl,leadStatus:"future",futureDate:dateStr}:sl);
+      try{const raw=localStorage.getItem(SAVE_KEY);const data=raw?JSON.parse(raw):{people:[{...person}]};
+        const ppl=data.people&&data.people.length?data.people:[{...person}];let pi=ppl.findIndex(p=>p.name&&p.name.toLowerCase()===pName.toLowerCase());
+        if(pi<0){ppl.push({...person});pi=ppl.length-1;}ppl[pi]={...ppl[pi],leads:upd};data.people=ppl;localStorage.setItem(SAVE_KEY,JSON.stringify(data));}catch(e){}
+      setShowFutureModal(false);};
     const saveNote=(leadId,note)=>{
       try{
         const raw=localStorage.getItem(SAVE_KEY);
@@ -993,7 +1002,7 @@ const [selLead,setSelLead]=useState(null);
         let pi=ppl.findIndex(p=>p.name&&p.name.toLowerCase()===pName.toLowerCase());
         if(pi<0){ppl.push({...person});pi=ppl.length-1;}
         if(pi<0)return;
-        ppl[pi]={...ppl[pi],leads:myLeads.map(l=>l.id===leadId?{...l,salesmanNote:note}:l)};
+        const ts2=new Date().toLocaleString("en-ZA",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});const noteEntry={text:note,ts:ts2};const updLeads2=myLeads.map(l=>{if(l.id!==leadId)return l;const prev=l.salesmanNotes||[];return{...l,salesmanNote:note,salesmanNotes:[...prev,noteEntry]};});setMyLeads(updLeads2);ppl[pi]={...ppl[pi],leads:updLeads2};
         data.people=ppl;
         localStorage.setItem(SAVE_KEY,JSON.stringify(data));
         fbPushPath("people",ppl);
@@ -1474,6 +1483,10 @@ class ErrorBoundary extends React.Component {
 
 ReactDOM.createRoot(document.getElementById("root")).render(<ErrorBoundary><SalesmanApp/></ErrorBoundary>);
 
+    const futureLds=filtered.filter(l=>l.leadStatus==="future");
+    const tod=new Date();tod.setHours(0,0,0,0);
+    const futureDue=futureLds.filter(l=>l.futureDateMs&&new Date(l.futureDateMs)<=tod);
+    const futureUpcoming=futureLds.filter(l=>!l.futureDateMs||new Date(l.futureDateMs)>tod);
 </script>
 </body>
 </html>
