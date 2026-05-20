@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<title>NTT Appraisal System</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f0f0f;color:#fff;min-height:100vh;}
+input,textarea,select,button{font-family:inherit;}
+::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:#1a1a1a;}::-webkit-scrollbar-thumb{background:#333;border-radius:3px;}
+.fade{animation:fadeIn .25s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+.pulse{animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.6;}}
+input[type=file]{display:none;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+var FB_URL='https://ntt-automark-default-rtdb.firebaseio.com';
+var FB_KEY='AIzaSyCXyVGftSYpeYgR1-Cb6yaY5EE6pfOLSXI';
+var APR_PATH=FB_URL+'/appraisals.json?auth='+FB_KEY;
+var APR_CFG_PATH=FB_URL+'/appraisal_config.json?auth='+FB_KEY;
+
+function fbGetAll(){return fetch(APR_PATH).then(r=>r.json()).catch(()=>null);}
+function fbSaveAppraisal(id,data){return fetch(FB_URL+'/appraisals/'+id+'.json?auth='+FB_KEY,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).catch(()=>{});}
+function fbGetConfig(){return fetch(APR_CFG_PATH).then(r=>r.json()).catch(()=>null);}
+function fbSaveConfig(cfg){return fetch(APR_CFG_PATH,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)}).catch(()=>{});}
+
+var DEFAULT_RECON=[
+  {id:'svc_minor',name:'Minor Service',cost:4500,qty:1},
+  {id:'svc_major',name:'Major Service',cost:8500,qty:1},
+  {id:'check_80',name:'80-Point Check',cost:1200,qty:1},
+  {id:'tyre',name:'Tyre (each)',cost:1200,qty:1},
+  {id:'brakes_pads',name:'Brake Pads (axle)',cost:1800,qty:1},
+  {id:'brakes_discs',name:'Brake Discs (axle)',cost:2500,qty:1},
+  {id:'windscreen_replace',name:'Windscreen Replace',cost:4500,qty:1},
+  {id:'windscreen_chip',name:'Windscreen Chip Repair',cost:450,qty:1},
+  {id:'panel_respray',name:'Panel Respray (per panel)',cost:3800,qty:1},
+  {id:'bumper_respray',name:'Bumper Respray',cost:2800,qty:1},
+  {id:'full_respray',name:'Full Respray',cost:28000,qty:1},
+  {id:'interior_shampoo',name:'Interior Shampoo',cost:1200,qty:1},
+  {id:'interior_repair',name:'Interior Repair (burn/tear)',cost:2500,qty:1},
+  {id:'valet',name:'Full Valet',cost:1800,qty:1},
+  {id:'air_filter',name:'Air Filter',cost:450,qty:1},
+  {id:'cabin_filter',name:'Cabin Filter',cost:380,qty:1},
+  {id:'wipers',name:'Wiper Blades',cost:320,qty:1},
+  {id:'battery',name:'Battery',cost:1800,qty:1},
+  {id:'spare_steel',name:'Spare Wheel (steel)',cost:1500,qty:1},
+  {id:'spare_alloy',name:'Spare Wheel (alloy)',cost:3500,qty:1},
+  {id:'dent',name:'Dent Repair (per dent)',cost:800,qty:1},
+  {id:'polish',name:'Polish & Buff',cost:1500,qty:1},
+  {id:'roadworthy',name:'Roadworthy Certificate',cost:1200,qty:1},
+];
+
+var DEFAULT_TECH_CHECKS=[
+  {section:'Brakes',items:['Front Brake Pads','Rear Brake Pads','Front Brake Discs','Rear Brake Discs','Brake Fluid Level','Handbrake Operation']},
+  {section:'Steering & Suspension',items:['Rack Ends','CV Joints','Lower Arm Bushes','Strut Condition','Shock Absorbers','Ball Joints','Steering Play']},
+  {section:'Engine',items:['Engine Oil Level & Condition','Coolant Level & Condition','Blow-by (Breather)','Rocker Cover Leaks','Sump Leaks','Timing Belt/Chain Condition','Air Filter']},
+  {section:'Gearbox & Drivetrain',items:['Gearbox Oil Leaks','Diff Oil Leaks','Clutch Operation','Gearbox Shifts','4x4 Operation (if applicable)']},
+  {section:'Tyres',items:['LF Tyre Tread (mm)','RF Tyre Tread (mm)','LR Tyre Tread (mm)','RR Tyre Tread (mm)','Spare Tyre Condition']},
+  {section:'Underbody & Body',items:['Accident Damage (underbody)','Rust (underbody)','Exhaust Condition','Fuel Tank Condition']},
+  {section:'Electrical',items:['Battery Condition','Air Conditioning','All Lights Operational','Instrument Cluster']},
+];
+
+var COLOURS={
+  bg:'#0f0f0f',card:'#1a1a1a',card2:'#222',border:'#2a2a2a',
+  gold:'#C9A84C',blue:'#1A6FAD',green:'#1E8449',red:'#C0392B',
+  text:'#fff',text2:'#aaa',text3:'#666',
+  inp:'#111',inpBorder:'#333',
+};
+
+var MGR_PIN='1234';
+var TECH_DEFAULT_PIN='0000';
+</script>
+<script type="text/babel">
+const{useState,useEffect,useCallback,useRef,memo}=React;
+
+// ── UTILITIES ─────────────────────────────────────────────────────────────────
+function genId(){return 'apr_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);}
+function fmtDate(d){if(!d)return'';var dt=typeof d==='string'?new Date(d):d;return dt.toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'});}
+function fmtTime(d){if(!d)return'';var dt=typeof d==='string'?new Date(d):d;return dt.toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'});}
+function fmtR(n){return'R'+Number(n||0).toLocaleString('en-ZA');}
+function useLocal(key,def){
+  const[v,sv]=useState(()=>{try{var d=localStorage.getItem(key);return d?JSON.parse(d):def;}catch{return def;}});
+  const set=useCallback(nv=>{sv(nv);try{localStorage.setItem(key,JSON.stringify(nv));}catch{}},[key]);
+  return[v,set];
+}
+
+// ── STYLED COMPONENTS ─────────────────────────────────────────────────────────
+const C=COLOURS;
+const S={
+  wrap:{minHeight:'100vh',background:C.bg,color:C.text},
+  card:{background:C.card,borderRadius:12,border:'1px solid '+C.border,padding:'16px 18px',marginBottom:12},
+  card2:{background:C.card2,borderRadius:10,border:'1px solid '+C.border,padding:'12px 14px',marginBottom:10},
+  inp:{width:'100%',padding:'10px 12px',background:C.inp,border:'1px solid '+C.inpBorder,borderRadius:8,color:C.text,fontSize:14,outline:'none'},
+  label:{fontSize:11,color:C.text2,fontWeight:600,marginBottom:4,letterSpacing:.5,display:'block'},
+  btnGold:{padding:'11px 18px',borderRadius:9,border:'none',background:C.gold,color:'#000',fontWeight:700,fontSize:13,cursor:'pointer'},
+  btnBlue:{padding:'11px 18px',borderRadius:9,border:'none',background:C.blue,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'},
+  btnGreen:{padding:'11px 18px',borderRadius:9,border:'none',background:C.green,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'},
+  btnRed:{padding:'11px 18px',borderRadius:9,border:'none',background:C.red,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer'},
+  btnGhost:{padding:'9px 14px',borderRadius:8,border:'1px solid '+C.border,background:'transparent',color:C.text2,fontSize:12,cursor:'pointer'},
+  section:{fontSize:11,fontWeight:800,color:C.gold,letterSpacing:1.5,marginBottom:8,marginTop:4},
+  h1:{fontSize:22,fontWeight:900,color:C.text},
+  h2:{fontSize:16,fontWeight:700,color:C.text},
+  h3:{fontSize:13,fontWeight:700,color:C.text},
+  sub:{fontSize:12,color:C.text2,marginTop:2},
+};
+
+function Inp({label,value,onChange,placeholder,type='text',style={}}){
+  return(<div style={{marginBottom:12}}>
+    {label&&<label style={S.label}>{label}</label>}
+    <input type={type} value={value} onChange={onChange} placeholder={placeholder||''} style={{...S.inp,...style}}/>
+  </div>);
+}
+function Sel({label,value,onChange,children,style={}}){
+  return(<div style={{marginBottom:12}}>
+    {label&&<label style={S.label}>{label}</label>}
+    <select value={value} onChange={onChange} style={{...S.inp,...style,cursor:'pointer'}}>{children}</select>
+  </div>);
+}
+function Txt({label,value,onChange,rows=3,placeholder=''}){
+  return(<div style={{marginBottom:12}}>
+    {label&&<label style={S.label}>{label}</label>}
+    <textarea value={value} onChange={onChange} rows={rows} placeholder={placeholder} style={{...S.inp,resize:'vertical',lineHeight:1.5}}/>
+  </div>);
+}
+function Badge({label,col,bg}){
+  return(<span style={{padding:'2px 10px',borderRadius:99,background:bg||col+'20',color:col,fontSize:11,fontWeight:700,border:'1px solid '+col+'40',whiteSpace:'nowrap'}}>{label}</span>);
+}
+
+// ── LOGIN SCREEN ──────────────────────────────────────────────────────────────
+function LoginScreen({onLogin}){
+  const[role,setRole]=useState('manager');
+  const[pin,setPin]=useState('');
+  const[name,setName]=useState('');
+  const[err,setErr]=useState('');
+  const[techNames]=useLocal('apr_tech_names',['Technician 1','Technician 2','Technician 3']);
+
+  function tryLogin(){
+    if(role==='manager'){
+      if(pin===MGR_PIN){onLogin({role:'manager',name:'Manager'});}
+      else{setErr('Incorrect PIN');setPin('');}
+    } else {
+      if(!name){setErr('Select your name');return;}
+      var techPins=JSON.parse(localStorage.getItem('apr_tech_pins')||'{}');
+      var expected=techPins[name]||TECH_DEFAULT_PIN;
+      if(pin===expected){onLogin({role:'tech',name});}
+      else{setErr('Incorrect PIN');setPin('');}
+    }
+  }
+
+  return(
+    <div style={{minHeight:'100vh',background:'linear-gradient(160deg,#0a0a0a 0%,#111 60%,#0d1a0d 100%)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{width:'100%',maxWidth:400}}>
+        <div style={{textAlign:'center',marginBottom:32}}>
+          <div style={{fontSize:50,marginBottom:12}}>🚗</div>
+          <div style={{fontSize:26,fontWeight:900,color:C.gold,letterSpacing:-1}}>NTT Appraisal</div>
+          <div style={{fontSize:13,color:C.text2,marginTop:4}}>NTT Toyota Louis Trichardt</div>
+        </div>
+
+        <div style={{...S.card}}>
+          <div style={{display:'flex',gap:8,marginBottom:20}}>
+            {['manager','tech'].map(r=>(
+              <button key={r} onClick={()=>{setRole(r);setErr('');setPin('');}} style={{flex:1,padding:'10px',borderRadius:9,border:'2px solid '+(role===r?C.gold:C.border),background:role===r?C.gold+'15':'transparent',color:role===r?C.gold:C.text2,fontWeight:700,fontSize:13,cursor:'pointer'}}>
+                {r==='manager'?'👔 Manager':'🔧 Technician'}
+              </button>
+            ))}
+          </div>
+
+          {role==='tech'&&(
+            <Sel label="SELECT YOUR NAME" value={name} onChange={e=>setName(e.target.value)}>
+              <option value="">— Choose name —</option>
+              {techNames.map(n=><option key={n} value={n}>{n}</option>)}
+            </Sel>
+          )}
+
+          <Inp label="PIN" value={pin} onChange={e=>setPin(e.target.value)} type="password" placeholder="Enter PIN" style={{letterSpacing:8,fontSize:20,textAlign:'center'}}/>
+          {err&&<div style={{color:C.red,fontSize:12,marginBottom:10,textAlign:'center'}}>{err}</div>}
+
+          <button onClick={tryLogin} onKeyDown={e=>e.key==='Enter'&&tryLogin()} style={{...S.btnGold,width:'100%',padding:14,fontSize:15}}>
+            Sign In
+          </button>
+        </div>
+
+        <div style={{textAlign:'center',fontSize:11,color:C.text3,marginTop:12}}>
+          Manager default PIN: 1234 · Tech default PIN: 0000
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── PHOTO CAPTURE ─────────────────────────────────────────────────────────────
+const PHOTO_PROMPTS=[
+  {key:'front',label:'Front of Vehicle',icon:'📸'},
+  {key:'rear',label:'Rear of Vehicle',icon:'📸'},
+  {key:'left_side',label:'Left Side',icon:'📸'},
+  {key:'right_side',label:'Right Side',icon:'📸'},
+  {key:'interior_front',label:'Interior (Front)',icon:'🪑'},
+  {key:'interior_rear',label:'Interior (Rear)',icon:'🪑'},
+  {key:'dashboard',label:'Dashboard & Cluster',icon:'📊'},
+  {key:'odometer',label:'Odometer Reading',icon:'🔢'},
+  {key:'engine_bay',label:'Engine Bay',icon:'⚙️'},
+  {key:'vin_plate',label:'VIN Plate',icon:'🔖'},
+  {key:'service_book',label:'Service Book',icon:'📋'},
+  {key:'damage_1',label:'Damage Photo 1',icon:'⚠️'},
+  {key:'damage_2',label:'Damage Photo 2',icon:'⚠️'},
+  {key:'damage_3',label:'Damage Photo 3',icon:'⚠️'},
+];
+
+function PhotoSection({photos,onPhotos}){
+  const fileRef=useRef();
+  const[currentPrompt,setCurrentPrompt]=useState(null);
+
+  function captureFor(prompt){
+    setCurrentPrompt(prompt);
+    fileRef.current.click();
+  }
+  function handleFile(e){
+    var file=e.target.files[0];
+    if(!file||!currentPrompt)return;
+    var reader=new FileReader();
+    reader.onload=function(ev){
+      var newPhotos={...photos,[currentPrompt.key]:{data:ev.target.result,ts:new Date().toISOString(),name:currentPrompt.label}};
+      onPhotos(newPhotos);
+    };
+    reader.readAsDataURL(file);
+    e.target.value='';
+  }
+
+  var capturedCount=Object.keys(photos).length;
+
+  return(
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+        <div style={S.section}>PHOTOS</div>
+        <Badge label={capturedCount+' captured'} col={capturedCount>0?C.green:C.text3}/>
+      </div>
+      <input type="file" accept="image/*" capture="environment" ref={fileRef} onChange={handleFile}/>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
+        {PHOTO_PROMPTS.map(p=>{
+          var taken=photos[p.key];
+          return(
+            <div key={p.key} onClick={()=>captureFor(p)} style={{background:taken?'#0a1f0a':C.card2,border:'1px solid '+(taken?C.green:C.border),borderRadius:10,padding:'10px 6px',textAlign:'center',cursor:'pointer',transition:'all .15s'}}>
+              {taken?(
+                <img src={taken.data} style={{width:'100%',height:60,objectFit:'cover',borderRadius:6,marginBottom:4}}/>
+              ):(
+                <div style={{fontSize:24,marginBottom:4}}>{p.icon}</div>
+              )}
+              <div style={{fontSize:10,color:taken?C.green:C.text2,fontWeight:600,lineHeight:1.2}}>{p.label}</div>
+              {taken&&<div style={{fontSize:9,color:C.green,marginTop:2}}>✓ Taken</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── TECHNICIAN CHECK FORM ─────────────────────────────────────────────────────
+function TechCheckForm({techChecks,onUpdate}){
+  const OPTS=['Good','Fair','Worn - Monitor','Worn - Replace','N/A'];
+  const OPT_COL={'Good':'#1E8449','Fair':'#F57F17','Worn - Monitor':'#e65100','Worn - Replace':'#C0392B','N/A':'#555'};
+
+  return(
+    <div>
+      {DEFAULT_TECH_CHECKS.map(section=>(
+        <div key={section.section} style={{...S.card,marginBottom:10}}>
+          <div style={{fontSize:13,fontWeight:800,color:C.gold,marginBottom:10}}>{section.section}</div>
+          {section.items.map(item=>{
+            var val=techChecks[item]||{rating:'',note:''};
+            return(
+              <div key={item} style={{borderBottom:'1px solid '+C.border,paddingBottom:10,marginBottom:10}}>
+                <div style={{fontSize:12,fontWeight:600,color:C.text,marginBottom:6}}>{item}</div>
+                <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:6}}>
+                  {OPTS.map(o=>(
+                    <button key={o} onClick={()=>onUpdate(item,{...val,rating:o})} style={{padding:'4px 8px',borderRadius:6,border:'1px solid '+(val.rating===o?OPT_COL[o]:C.border),background:val.rating===o?OPT_COL[o]+'25':'transparent',color:val.rating===o?OPT_COL[o]:C.text3,fontSize:10,fontWeight:700,cursor:'pointer'}}>
+                      {o}
+                    </button>
+                  ))}
+                </div>
+                <input value={val.note} onChange={e=>onUpdate(item,{...val,note:e.target.value})} placeholder="Notes (optional)" style={{...S.inp,fontSize:12,padding:'7px 10px'}}/>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── RECON CALCULATOR ──────────────────────────────────────────────────────────
+function ReconCalc({reconItems,selectedRecon,onUpdate,onSaveItems}){
+  const[showAdd,setShowAdd]=useState(false);
+  const[newName,setNewName]=useState('');
+  const[newCost,setNewCost]=useState('');
+
+  function toggle(id){
+    var current=selectedRecon[id]||null;
+    if(current){var n={...selectedRecon};delete n[id];onUpdate(n);}
+    else{
+      var item=reconItems.find(i=>i.id===id);
+      onUpdate({...selectedRecon,[id]:{qty:1,cost:item.cost,name:item.name}});
+    }
+  }
+  function setQty(id,qty){
+    if(!selectedRecon[id])return;
+    onUpdate({...selectedRecon,[id]:{...selectedRecon[id],qty:Math.max(1,parseInt(qty)||1)}});
+  }
+  function setCost(id,cost){
+    if(!selectedRecon[id])return;
+    onUpdate({...selectedRecon,[id]:{...selectedRecon[id],cost:parseInt(cost)||0}});
+  }
+  function addCustom(){
+    if(!newName||!newCost)return;
+    var id='custom_'+Date.now();
+    var updated=[...reconItems,{id,name:newName,cost:parseInt(newCost)||0,qty:1}];
+    onSaveItems(updated);
+    onUpdate({...selectedRecon,[id]:{qty:1,cost:parseInt(newCost)||0,name:newName}});
+    setNewName('');setNewCost('');setShowAdd(false);
+  }
+  function removeItem(id){
+    var updated=reconItems.filter(i=>i.id!==id);
+    onSaveItems(updated);
+    var n={...selectedRecon};delete n[id];onUpdate(n);
+  }
+
+  var total=Object.values(selectedRecon).reduce((a,v)=>a+(v.cost*v.qty),0);
+
+  return(
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+        <div style={S.section}>RECON CALCULATOR</div>
+        <div style={{fontSize:16,fontWeight:900,color:C.gold}}>{fmtR(total)}</div>
+      </div>
+
+      <div style={{display:'grid',gap:6,marginBottom:10}}>
+        {reconItems.map(item=>{
+          var sel=selectedRecon[item.id];
+          return(
+            <div key={item.id} style={{background:sel?C.green+'15':C.card2,border:'1px solid '+(sel?C.green:C.border),borderRadius:9,padding:'10px 12px',transition:'all .15s'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <div onClick={()=>toggle(item.id)} style={{width:20,height:20,borderRadius:5,border:'2px solid '+(sel?C.green:C.border),background:sel?C.green:'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,flexShrink:0}}>
+                  {sel&&'✓'}
+                </div>
+                <div style={{flex:1,fontSize:13,fontWeight:sel?700:400,color:sel?C.text:C.text2}}>{item.name}</div>
+                {sel?(
+                  <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:4}}>
+                      <span style={{fontSize:10,color:C.text2}}>Qty</span>
+                      <input type="number" min="1" value={sel.qty} onChange={e=>setQty(item.id,e.target.value)} style={{width:40,padding:'3px 5px',background:C.inp,border:'1px solid '+C.inpBorder,borderRadius:5,color:C.text,fontSize:12,textAlign:'center'}}/>
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:4}}>
+                      <span style={{fontSize:10,color:C.text2}}>R</span>
+                      <input type="number" value={sel.cost} onChange={e=>setCost(item.id,e.target.value)} style={{width:72,padding:'3px 5px',background:C.inp,border:'1px solid '+C.inpBorder,borderRadius:5,color:C.gold,fontSize:12,textAlign:'right'}}/>
+                    </div>
+                    <div style={{fontSize:12,fontWeight:700,color:C.green,minWidth:70,textAlign:'right'}}>{fmtR(sel.cost*sel.qty)}</div>
+                  </div>
+                ):(
+                  <div style={{fontSize:12,color:C.text3}}>{fmtR(item.cost)}</div>
+                )}
+                <button onClick={()=>removeItem(item.id)} style={{background:'none',border:'none',color:C.text3,cursor:'pointer',fontSize:14,padding:'0 4px',flexShrink:0}} title="Remove from list">×</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {showAdd?(
+        <div style={{...S.card2,border:'1px solid '+C.gold+'40'}}>
+          <div style={S.section}>ADD CUSTOM ITEM</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:8}}>
+            <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Item description" style={{...S.inp,fontSize:13}}/>
+            <input type="number" value={newCost} onChange={e=>setNewCost(e.target.value)} placeholder="Cost (R)" style={{...S.inp,width:100,fontSize:13}}/>
+          </div>
+          <div style={{display:'flex',gap:8,marginTop:8}}>
+            <button onClick={addCustom} style={{...S.btnGold,flex:1}}>Add & Select</button>
+            <button onClick={()=>{setShowAdd(false);setNewName('');setNewCost('');}} style={{...S.btnGhost,flex:1}}>Cancel</button>
+          </div>
+        </div>
+      ):(
+        <button onClick={()=>setShowAdd(true)} style={{...S.btnGhost,width:'100%',marginBottom:10}}>+ Add Custom Item</button>
+      )}
+
+      {total>0&&(
+        <div style={{background:'linear-gradient(135deg,'+C.gold+'20,'+C.gold+'10)',border:'1px solid '+C.gold+'40',borderRadius:10,padding:'12px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div style={{fontSize:13,fontWeight:700,color:C.text}}>TOTAL RECON ESTIMATE</div>
+          <div style={{fontSize:22,fontWeight:900,color:C.gold}}>{fmtR(total)}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── WHATSAPP GENERATOR ────────────────────────────────────────────────────────
+function WhatsAppGenerator({appraisal,reconItems,traders,onSaveTraders}){
+  const[editTraders,setEditTraders]=useState(false);
+  const[newTrader,setNewTrader]=useState({name:'',phone:''});
+  const[copied,setCopied]=useState(null);
+
+  var v=appraisal.vehicle||{};
+  var m=appraisal.managerChecks||{};
+  var sel=appraisal.selectedRecon||{};
+  var reconTotal=Object.values(sel).reduce((a,v)=>a+(v.cost*v.qty),0);
+  var techName=appraisal.techName||'';
+  var techDate=appraisal.techSubmittedAt?fmtDate(appraisal.techSubmittedAt):'';
+
+  function buildMessage(traderName){
+    var lines=[];
+    lines.push('🚗 *TRADE-IN APPRAISAL — NTT TOYOTA LOUIS TRICHARDT*');
+    lines.push('━━━━━━━━━━━━━━━━━━━━━━━━');
+    lines.push('');
+    lines.push('📋 *VEHICLE*');
+    lines.push((v.year||'')+ ' '+(v.make||'')+' '+(v.model||'')+' '+(v.variant||''));
+    if(v.vin)lines.push('VIN: '+v.vin);
+    lines.push('Kilometres: '+Number(v.km||0).toLocaleString('en-ZA')+' km');
+    lines.push('Colour: '+(v.colour||'-'));
+    lines.push('Service History: '+(v.serviceHistory||'-'));
+    lines.push('');
+    lines.push('💰 *BOOK VALUES*');
+    lines.push('Trade: '+(v.tradeValue?fmtR(v.tradeValue):'-'));
+    lines.push('Retail: '+(v.retailValue?fmtR(v.retailValue):'-'));
+    lines.push('');
+    if(Object.keys(sel).length>0){
+      lines.push('🔧 *RECON ESTIMATE*');
+      Object.values(sel).forEach(item=>{
+        var qty=item.qty>1?item.qty+'x ':'';
+        lines.push('• '+qty+item.name+': '+fmtR(item.cost*item.qty));
+      });
+      lines.push('━━━━━━━━━━━━━━');
+      lines.push('*TOTAL RECON: '+fmtR(reconTotal)+'*');
+      lines.push('');
+    }
+    if(appraisal.techChecks&&Object.keys(appraisal.techChecks).length>0){
+      lines.push('🔩 *TECHNICIAN REPORT*'+(techName?' ('+techName+(techDate?' · '+techDate:'')+')':''));
+      Object.entries(appraisal.techChecks).forEach(([item,val])=>{
+        if(val.rating&&val.rating!=='Good'&&val.rating!=='N/A'){
+          lines.push('• '+item+': '+val.rating+(val.note?' — '+val.note:''));
+        }
+      });
+      lines.push('');
+    }
+    lines.push('🧐 *MANAGER ASSESSMENT*');
+    if(m.paintCondition)lines.push('• Paint: '+m.paintCondition);
+    if(m.interiorRating)lines.push('• Interior: '+m.interiorRating+'/10'+(m.interiorNotes?' — '+m.interiorNotes:''));
+    if(m.windscreen)lines.push('• Windscreen: '+m.windscreen);
+    if(m.serviceHistory)lines.push('• Service Book: '+m.serviceHistory);
+    if(m.spareWheel)lines.push('• Spare Wheel: '+m.spareWheel);
+    if(m.tyreCondition)lines.push('• Tyres: '+m.tyreCondition);
+    if(m.additionalNotes)lines.push('• Notes: '+m.additionalNotes);
+    lines.push('');
+    var photoCount=Object.keys(appraisal.photos||{}).length;
+    if(photoCount>0)lines.push('📸 *PHOTOS: '+photoCount+' images captured*\n(See attached gallery)');
+    lines.push('');
+    if(v.make&&v.model){
+      var atUrl='https://www.autotrader.co.za/cars-for-sale?Year='+v.year+'&Make='+encodeURIComponent(v.make)+'&Model='+encodeURIComponent(v.model);
+      lines.push('📊 *MARKET COMPS*');
+      lines.push(atUrl);
+      lines.push('');
+    }
+    lines.push('⏰ Appraisal: '+fmtDate(appraisal.createdAt)+' '+fmtTime(appraisal.createdAt));
+    lines.push('🏢 NTT Toyota Louis Trichardt');
+    lines.push('━━━━━━━━━━━━━━━━━━━━━━━━');
+    if(traderName)lines.push('Hi '+traderName+', please respond with your best offer.');
+    else lines.push('Please respond with your best offer.');
+    return lines.join('\n');
+  }
+
+  function copyMsg(trader){
+    var msg=buildMessage(trader.name);
+    navigator.clipboard.writeText(msg).then(()=>{setCopied(trader.phone);setTimeout(()=>setCopied(null),2000);});
+  }
+  function openWA(trader){
+    var msg=buildMessage(trader.name);
+    var phone=trader.phone.replace(/\D/g,'');
+    if(phone.startsWith('0'))phone='27'+phone.slice(1);
+    window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(msg),'_blank');
+  }
+
+  return(
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+        <div style={S.section}>SEND TO TRADERS</div>
+        <button onClick={()=>setEditTraders(!editTraders)} style={{...S.btnGhost,fontSize:11}}>
+          {editTraders?'Done':'Manage Traders'}
+        </button>
+      </div>
+
+      {editTraders&&(
+        <div style={{...S.card2,marginBottom:12}}>
+          <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:8}}>Saved Traders</div>
+          {traders.map((t,i)=>(
+            <div key={i} style={{display:'flex',gap:8,alignItems:'center',marginBottom:6,padding:'8px 10px',background:C.card,borderRadius:8}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:600}}>{t.name}</div>
+                <div style={{fontSize:11,color:C.text2}}>{t.phone}</div>
+              </div>
+              <button onClick={()=>onSaveTraders(traders.filter((_,j)=>j!==i))} style={{background:'none',border:'none',color:C.red,cursor:'pointer',fontSize:16}}>×</button>
+            </div>
+          ))}
+          {traders.length<10&&(
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:8,marginTop:8}}>
+              <input value={newTrader.name} onChange={e=>setNewTrader({...newTrader,name:e.target.value})} placeholder="Name" style={{...S.inp,fontSize:12}}/>
+              <input value={newTrader.phone} onChange={e=>setNewTrader({...newTrader,phone:e.target.value})} placeholder="082 000 0000" style={{...S.inp,fontSize:12}}/>
+              <button onClick={()=>{if(newTrader.name&&newTrader.phone){onSaveTraders([...traders,newTrader]);setNewTrader({name:'',phone:''});}}} style={{...S.btnGold,padding:'8px 14px',fontSize:12}}>Add</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {traders.length===0?(
+        <div style={{...S.card2,textAlign:'center',color:C.text3,padding:24}}>
+          <div style={{fontSize:28,marginBottom:8}}>👤</div>
+          <div>No traders saved. Tap "Manage Traders" to add up to 10.</div>
+        </div>
+      ):(
+        <div style={{display:'grid',gap:8}}>
+          {traders.map((t,i)=>(
+            <div key={i} style={{...S.card2,display:'flex',alignItems:'center',gap:12}}>
+              <div style={{width:40,height:40,borderRadius:20,background:C.green+'20',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>👤</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:700}}>{t.name}</div>
+                <div style={{fontSize:11,color:C.text2}}>{t.phone}</div>
+              </div>
+              <div style={{display:'flex',gap:6}}>
+                <button onClick={()=>copyMsg(t)} style={{...S.btnGhost,fontSize:11,padding:'6px 10px'}}>
+                  {copied===t.phone?'✓ Copied':'📋 Copy'}
+                </button>
+                <button onClick={()=>openWA(t)} style={{...S.btnGreen,fontSize:11,padding:'6px 12px'}}>
+                  📱 WhatsApp
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{marginTop:14,...S.card2}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.text2,marginBottom:8}}>MESSAGE PREVIEW</div>
+        <pre style={{fontSize:11,color:C.text3,whiteSpace:'pre-wrap',lineHeight:1.6,maxHeight:300,overflow:'auto'}}>{buildMessage(traders[0]?.name||'')}</pre>
+      </div>
+    </div>
+  );
+}
+
+// ── MANAGER CHECK FORM ────────────────────────────────────────────────────────
+function ManagerChecks({checks,onChange}){
+  const c=(f,v)=>onChange({...checks,[f]:v});
+  return(
+    <div>
+      <Sel label="PAINT CONDITION" value={checks.paintCondition||''} onChange={e=>c('paintCondition',e.target.value)}>
+        <option value="">Select...</option>
+        <option>Original - Excellent</option><option>Original - Good</option><option>Original - Fair</option>
+        <option>1 Panel Resprayed - Match Good</option><option>1 Panel Resprayed - Match Poor</option>
+        <option>Multiple Panels Resprayed</option><option>Full Respray - Good</option><option>Full Respray - Poor</option>
+        <option>Hail Damage</option><option>Accident Damage - Repaired</option><option>Accident Damage - Unrepaired</option>
+      </Sel>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <Sel label="INTERIOR (1-10)" value={checks.interiorRating||''} onChange={e=>c('interiorRating',e.target.value)}>
+          <option value="">Score...</option>
+          {[1,2,3,4,5,6,7,8,9,10].map(n=><option key={n}>{n}</option>)}
+        </Sel>
+        <Sel label="WINDSCREEN" value={checks.windscreen||''} onChange={e=>c('windscreen',e.target.value)}>
+          <option value="">Select...</option>
+          <option>Perfect</option><option>Minor Chips (Repairable)</option>
+          <option>Large Chip / Crack</option><option>Replace Required</option>
+        </Sel>
+      </div>
+      <Inp label="INTERIOR NOTES" value={checks.interiorNotes||''} onChange={e=>c('interiorNotes',e.target.value)} placeholder="e.g. Worn driver seat, stain on carpet..."/>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <Sel label="SERVICE HISTORY" value={checks.serviceHistory||''} onChange={e=>c('serviceHistory',e.target.value)}>
+          <option value="">Select...</option>
+          <option>Full Toyota</option><option>Full Other Dealer</option>
+          <option>Partial</option><option>None</option><option>Unknown</option>
+        </Sel>
+        <Sel label="SPARE WHEEL" value={checks.spareWheel||''} onChange={e=>c('spareWheel',e.target.value)}>
+          <option value="">Select...</option>
+          <option>Full Size - Present</option><option>Space Saver - Present</option>
+          <option>Missing</option><option>Alloy - Present</option>
+        </Sel>
+      </div>
+      <Sel label="TYRE CONDITION (OVERALL)" value={checks.tyreCondition||''} onChange={e=>c('tyreCondition',e.target.value)}>
+        <option value="">Select...</option>
+        <option>All Good (5mm+)</option><option>Acceptable (3-5mm)</option>
+        <option>Some Need Replacing (under 2mm)</option><option>All Need Replacing</option>
+      </Sel>
+      <Sel label="ACCIDENT HISTORY (VISIBLE)" value={checks.accidentHistory||''} onChange={e=>c('accidentHistory',e.target.value)}>
+        <option value="">Select...</option>
+        <option>No Visible Damage</option><option>Minor - Well Repaired</option>
+        <option>Moderate - Repaired</option><option>Major Accident History</option>
+      </Sel>
+      <Txt label="ADDITIONAL MANAGER NOTES" value={checks.additionalNotes||''} onChange={e=>c('additionalNotes',e.target.value)} rows={3} placeholder="Any other observations..."/>
+    </div>
+  );
+}
+
+// ── APPRAISAL EDITOR (MANAGER) ────────────────────────────────────────────────
+function AppraisalEditor({appraisal:initApr,reconItems,onSave,onBack}){
+  const[apr,setApr]=useState(initApr);
+  const[step,setStep]=useState('vehicle');
+  const[saving,setSaving]=useState(false);
+  const[saved,setSaved]=useState(false);
+
+  const upd=useCallback((field,val)=>setApr(a=>({...a,[field]:val})),[]);
+  const updVeh=useCallback((field,val)=>setApr(a=>({...a,vehicle:{...(a.vehicle||{}),[field]:val}})),[]);
+
+  async function save(){
+    setSaving(true);
+    var updated={...apr,updatedAt:new Date().toISOString()};
+    await fbSaveAppraisal(apr.id,updated);
+    onSave(updated);
+    setSaving(false);setSaved(true);setTimeout(()=>setSaved(false),2000);
+  }
+
+  var v=apr.vehicle||{};
+  var photoCount=Object.keys(apr.photos||{}).length;
+
+  const STEPS=[
+    {key:'vehicle',label:'Vehicle',icon:'🚗'},
+    {key:'photos',label:'Photos',icon:'📸'},
+    {key:'tech',label:'Tech Report',icon:'🔧'},
+    {key:'manager',label:'Manager',icon:'🧐'},
+    {key:'recon',label:'Recon',icon:'💰'},
+    {key:'send',label:'Send',icon:'📱'},
+  ];
+
+  return(
+    <div style={{maxWidth:600,margin:'0 auto',padding:'0 14px 80px'}}>
+      {/* Header */}
+      <div style={{background:C.card,borderBottom:'1px solid '+C.border,padding:'12px 14px',marginBottom:14,position:'sticky',top:0,zIndex:50,display:'flex',alignItems:'center',gap:10}}>
+        <button onClick={onBack} style={{...S.btnGhost,padding:'6px 10px',fontSize:13}}>← Back</button>
+        <div style={{flex:1}}>
+          <div style={{fontSize:14,fontWeight:700}}>{v.year?v.year+' '+v.make+' '+v.model:'New Appraisal'}</div>
+          <div style={{fontSize:11,color:C.text2}}>{apr.status==='complete'?'Complete':'In Progress'} · {fmtDate(apr.createdAt)}</div>
+        </div>
+        <button onClick={save} style={{...S.btnGold,padding:'7px 14px',fontSize:12}}>
+          {saving?'Saving...':saved?'✓ Saved':'Save'}
+        </button>
+      </div>
+
+      {/* Step tabs */}
+      <div style={{display:'flex',gap:4,overflowX:'auto',marginBottom:14,paddingBottom:4}}>
+        {STEPS.map(s=>(
+          <button key={s.key} onClick={()=>setStep(s.key)} style={{flexShrink:0,padding:'7px 10px',borderRadius:8,border:'1px solid '+(step===s.key?C.gold:C.border),background:step===s.key?C.gold+'20':'transparent',color:step===s.key?C.gold:C.text2,fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
+            {s.icon} {s.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="fade" key={step}>
+
+      {/* ── VEHICLE DETAILS ── */}
+      {step==='vehicle'&&(
+        <div>
+          <div style={S.section}>VEHICLE INFORMATION</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+            <Inp label="YEAR" value={v.year||''} onChange={e=>updVeh('year',e.target.value)} placeholder="2022"/>
+            <Inp label="MAKE" value={v.make||''} onChange={e=>updVeh('make',e.target.value)} placeholder="Toyota"/>
+          </div>
+          <Inp label="MODEL" value={v.model||''} onChange={e=>updVeh('model',e.target.value)} placeholder="Hilux"/>
+          <Inp label="VARIANT / DERIVATIVE" value={v.variant||''} onChange={e=>updVeh('variant',e.target.value)} placeholder="2.4 GD-6 RB SRX D/C A/T"/>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+            <Inp label="VIN NUMBER" value={v.vin||''} onChange={e=>updVeh('vin',e.target.value)} placeholder="AHTJB8..."/>
+            <Inp label="KILOMETRES" type="number" value={v.km||''} onChange={e=>updVeh('km',e.target.value)} placeholder="142000"/>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+            <Inp label="COLOUR" value={v.colour||''} onChange={e=>updVeh('colour',e.target.value)} placeholder="White"/>
+            <Inp label="LICENCE NUMBER" value={v.licence||''} onChange={e=>updVeh('licence',e.target.value)} placeholder="ABC 123 GP"/>
+          </div>
+          <div style={S.section}>BOOK VALUES (M&M)</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+            <Inp label="TRADE VALUE" type="number" value={v.tradeValue||''} onChange={e=>updVeh('tradeValue',e.target.value)} placeholder="285000"/>
+            <Inp label="RETAIL VALUE" type="number" value={v.retailValue||''} onChange={e=>updVeh('retailValue',e.target.value)} placeholder="349000"/>
+          </div>
+          {v.make&&v.model&&(
+            <div>
+              <div style={S.section}>MARKET RESEARCH</div>
+              <button onClick={()=>window.open('https://www.autotrader.co.za/cars-for-sale?Year='+v.year+'&Make='+encodeURIComponent(v.make)+'&Model='+encodeURIComponent(v.model),'_blank')} style={{...S.btnBlue,width:'100%',marginBottom:8}}>
+                🔍 Search AutoTrader for Similar Vehicles
+              </button>
+              <Txt label="MARKET NOTES" value={v.marketNotes||''} onChange={e=>updVeh('marketNotes',e.target.value)} rows={2} placeholder="e.g. 7 similar on AutoTrader, avg R189k..."/>
+            </div>
+          )}
+          <Sel label="APPRAISAL STATUS" value={apr.status||'active'} onChange={e=>upd('status',e.target.value)}>
+            <option value="active">Active</option>
+            <option value="pending_offer">Pending Trader Offer</option>
+            <option value="offer_received">Offer Received</option>
+            <option value="bought">Bought In</option>
+            <option value="not_bought">Not Bought</option>
+            <option value="complete">Complete</option>
+          </Sel>
+          <button onClick={()=>setStep('photos')} style={{...S.btnGold,width:'100%',marginTop:4}}>Next: Photos →</button>
+        </div>
+      )}
+
+      {/* ── PHOTOS ── */}
+      {step==='photos'&&(
+        <div>
+          <PhotoSection photos={apr.photos||{}} onPhotos={p=>upd('photos',p)}/>
+          <button onClick={()=>setStep('tech')} style={{...S.btnGold,width:'100%',marginTop:14}}>Next: Tech Report →</button>
+        </div>
+      )}
+
+      {/* ── TECH REPORT ── */}
+      {step==='tech'&&(
+        <div>
+          {apr.techSubmittedAt?(
+            <div>
+              <div style={{...S.card2,background:C.green+'15',border:'1px solid '+C.green+'40',marginBottom:14}}>
+                <div style={{fontSize:13,fontWeight:700,color:C.green}}>✅ Tech Report Submitted</div>
+                <div style={{fontSize:11,color:C.text2,marginTop:2}}>by {apr.techName} · {fmtDate(apr.techSubmittedAt)} {fmtTime(apr.techSubmittedAt)}</div>
+              </div>
+              <TechCheckForm techChecks={apr.techChecks||{}} onUpdate={(item,val)=>upd('techChecks',{...(apr.techChecks||{}),[item]:val})}/>
+            </div>
+          ):(
+            <div>
+              <div style={{...S.card2,background:'#1a1400',border:'1px solid '+C.gold+'40',marginBottom:14,textAlign:'center',padding:20}}>
+                <div style={{fontSize:28,marginBottom:8}}>🔧</div>
+                <div style={{fontSize:14,fontWeight:700,color:C.gold}}>Awaiting Technician</div>
+                <div style={{fontSize:12,color:C.text2,marginTop:4}}>Hand the tablet to the technician to complete their inspection.</div>
+              </div>
+              <TechCheckForm techChecks={apr.techChecks||{}} onUpdate={(item,val)=>upd('techChecks',{...(apr.techChecks||{}),[item]:val})}/>
+            </div>
+          )}
+          <button onClick={()=>setStep('manager')} style={{...S.btnGold,width:'100%',marginTop:14}}>Next: Manager Assessment →</button>
+        </div>
+      )}
+
+      {/* ── MANAGER CHECKS ── */}
+      {step==='manager'&&(
+        <div>
+          <div style={S.section}>MANAGER ASSESSMENT</div>
+          <ManagerChecks checks={apr.managerChecks||{}} onChange={v=>upd('managerChecks',v)}/>
+          <button onClick={()=>setStep('recon')} style={{...S.btnGold,width:'100%',marginTop:4}}>Next: Recon Calculator →</button>
+        </div>
+      )}
+
+      {/* ── RECON ── */}
+      {step==='recon'&&(
+        <div>
+          <ReconCalc
+            reconItems={reconItems}
+            selectedRecon={apr.selectedRecon||{}}
+            onUpdate={v=>upd('selectedRecon',v)}
+            onSaveItems={()=>{}}
+          />
+          <button onClick={()=>setStep('send')} style={{...S.btnGold,width:'100%',marginTop:14}}>Next: Send to Traders →</button>
+        </div>
+      )}
+
+      {/* ── SEND ── */}
+      {step==='send'&&(
+        <div>
+          <WhatsAppGenerator
+            appraisal={apr}
+            reconItems={reconItems}
+            traders={JSON.parse(localStorage.getItem('apr_traders')||'[]')}
+            onSaveTraders={t=>{localStorage.setItem('apr_traders',JSON.stringify(t));}}
+          />
+        </div>
+      )}
+
+      </div>
+    </div>
+  );
+}
+
+// ── TECH VIEW ─────────────────────────────────────────────────────────────────
+function TechView({user,appraisals,onSubmit}){
+  const[selApr,setSelApr]=useState(null);
+  const[checks,setChecks]=useState({});
+  const[notes,setNotes]=useState('');
+  const[submitting,setSubmitting]=useState(false);
+
+  var pending=Object.values(appraisals).filter(a=>!a.techSubmittedAt);
+
+  async function submit(){
+    if(!selApr)return;
+    setSubmitting(true);
+    var updated={...selApr,techChecks:checks,techNotes:notes,techName:user.name,techSubmittedAt:new Date().toISOString()};
+    await fbSaveAppraisal(selApr.id,updated);
+    onSubmit(updated);
+    setSelApr(null);setChecks({});setNotes('');setSubmitting(false);
+  }
+
+  if(selApr) return(
+    <div style={{maxWidth:600,margin:'0 auto',padding:'0 14px 80px'}}>
+      <div style={{background:C.card,borderBottom:'1px solid '+C.border,padding:'12px 14px',marginBottom:14,position:'sticky',top:0,zIndex:50,display:'flex',alignItems:'center',gap:10}}>
+        <button onClick={()=>setSelApr(null)} style={{...S.btnGhost,padding:'6px 10px'}}>← Back</button>
+        <div style={{flex:1}}>
+          <div style={{fontSize:14,fontWeight:700}}>{selApr.vehicle?.year} {selApr.vehicle?.make} {selApr.vehicle?.model}</div>
+          <div style={{fontSize:11,color:C.text2}}>Tech: {user.name}</div>
+        </div>
+        <button onClick={submit} style={{...S.btnGreen,padding:'7px 14px',fontSize:12}}>
+          {submitting?'Submitting...':'✓ Submit'}
+        </button>
+      </div>
+      <TechCheckForm techChecks={checks} onUpdate={(item,val)=>setChecks(c=>({...c,[item]:val}))}/>
+      <Txt label="GENERAL TECH NOTES" value={notes} onChange={e=>setNotes(e.target.value)} rows={3} placeholder="Any other observations..."/>
+      <button onClick={submit} style={{...S.btnGreen,width:'100%',padding:14,fontSize:15,marginTop:8}}>
+        {submitting?'Submitting...':'✓ Submit Tech Report'}
+      </button>
+    </div>
+  );
+
+  return(
+    <div style={{maxWidth:600,margin:'0 auto',padding:'14px'}}>
+      <div style={{textAlign:'center',padding:'20px 0',marginBottom:14}}>
+        <div style={{fontSize:28,marginBottom:8}}>🔧</div>
+        <div style={{fontSize:20,fontWeight:900,color:C.gold}}>Tech Inspection</div>
+        <div style={{fontSize:12,color:C.text2,marginTop:2}}>Logged in as {user.name}</div>
+      </div>
+      {pending.length===0?(
+        <div style={{...S.card,textAlign:'center',padding:32,color:C.text3}}>
+          <div style={{fontSize:32,marginBottom:10}}>✅</div>
+          <div style={{fontSize:14}}>No vehicles awaiting inspection</div>
+        </div>
+      ):(
+        pending.map(a=>(
+          <div key={a.id} onClick={()=>setSelApr(a)} style={{...S.card,cursor:'pointer',borderColor:C.gold+'40'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+              <div>
+                <div style={{fontSize:16,fontWeight:800}}>{a.vehicle?.year} {a.vehicle?.make} {a.vehicle?.model}</div>
+                <div style={{fontSize:12,color:C.text2,marginTop:2}}>{a.vehicle?.variant}</div>
+                <div style={{fontSize:11,color:C.text3,marginTop:4}}>Added {fmtDate(a.createdAt)}</div>
+              </div>
+              <Badge label="Awaiting Tech" col={C.gold}/>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ── APPRAISAL LIST ────────────────────────────────────────────────────────────
+const STATUS_MAP={
+  active:{label:'Active',col:'#1A6FAD'},
+  pending_offer:{label:'Pending Offer',col:'#F57F17'},
+  offer_received:{label:'Offer Received',col:'#6A0DAD'},
+  bought:{label:'Bought In',col:'#1E8449'},
+  not_bought:{label:'Not Bought',col:'#C0392B'},
+  complete:{label:'Complete',col:'#555'},
+};
+
+function AppraisalList({appraisals,onSelect,onCreate}){
+  const[search,setSearch]=useState('');
+  const[filter,setFilter]=useState('all');
+
+  var list=Object.values(appraisals).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  if(filter!=='all')list=list.filter(a=>a.status===filter);
+  if(search.trim()){
+    var q=search.toLowerCase();
+    list=list.filter(a=>{
+      var v=a.vehicle||{};
+      return [v.make,v.model,v.year,v.variant,v.vin,v.licence].some(f=>(f||'').toLowerCase().includes(q));
+    });
+  }
+
+  return(
+    <div style={{maxWidth:600,margin:'0 auto',padding:'14px'}}>
+      {/* Top bar */}
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+        <div>
+          <div style={{fontSize:20,fontWeight:900,color:C.gold}}>Appraisals</div>
+          <div style={{fontSize:11,color:C.text2}}>{Object.keys(appraisals).length} total</div>
+        </div>
+        <button onClick={onCreate} style={{...S.btnGold}}>+ New Appraisal</button>
+      </div>
+
+      {/* Stats */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:14}}>
+        {[
+          {label:'Active',count:Object.values(appraisals).filter(a=>a.status==='active'||!a.status).length,col:C.blue},
+          {label:'Pending',count:Object.values(appraisals).filter(a=>a.status==='pending_offer').length,col:'#F57F17'},
+          {label:'Bought In',count:Object.values(appraisals).filter(a=>a.status==='bought').length,col:C.green},
+        ].map(s=>(
+          <div key={s.label} style={{background:s.col+'15',border:'1px solid '+s.col+'30',borderRadius:10,padding:'10px',textAlign:'center'}}>
+            <div style={{fontSize:22,fontWeight:900,color:s.col}}>{s.count}</div>
+            <div style={{fontSize:10,color:C.text2,fontWeight:600}}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍  Search make, model, VIN, licence..." style={{...S.inp,marginBottom:10}}/>
+
+      <div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto',paddingBottom:4}}>
+        {[['all','All'],['active','Active'],['pending_offer','Pending'],['offer_received','Offers'],['bought','Bought'],['not_bought','Passed']].map(([k,l])=>(
+          <button key={k} onClick={()=>setFilter(k)} style={{flexShrink:0,padding:'5px 10px',borderRadius:7,border:'1px solid '+(filter===k?C.gold:C.border),background:filter===k?C.gold+'20':'transparent',color:filter===k?C.gold:C.text2,fontSize:11,fontWeight:700,cursor:'pointer'}}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {list.length===0?(
+        <div style={{...S.card,textAlign:'center',padding:40,color:C.text3}}>
+          <div style={{fontSize:32,marginBottom:10}}>📋</div>
+          <div>No appraisals found</div>
+        </div>
+      ):(
+        list.map(a=>{
+          var v=a.vehicle||{};
+          var st=STATUS_MAP[a.status||'active']||STATUS_MAP.active;
+          var photoCount=Object.keys(a.photos||{}).length;
+          var hasTech=!!a.techSubmittedAt;
+          var reconTotal=Object.values(a.selectedRecon||{}).reduce((s,r)=>s+(r.cost*r.qty),0);
+          return(
+            <div key={a.id} onClick={()=>onSelect(a)} style={{...S.card,cursor:'pointer',marginBottom:10,transition:'border-color .15s',borderColor:C.border}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:16,fontWeight:800}}>{v.year} {v.make} {v.model}</div>
+                  <div style={{fontSize:12,color:C.text2}}>{v.variant}</div>
+                </div>
+                <Badge label={st.label} col={st.col}/>
+              </div>
+              <div style={{display:'flex',gap:12,fontSize:11,color:C.text2,flexWrap:'wrap'}}>
+                {v.km&&<span>📍 {Number(v.km).toLocaleString('en-ZA')} km</span>}
+                {v.tradeValue&&<span>💰 Trade: {fmtR(v.tradeValue)}</span>}
+                {reconTotal>0&&<span>🔧 Recon: {fmtR(reconTotal)}</span>}
+                {photoCount>0&&<span>📸 {photoCount} photos</span>}
+                {hasTech&&<span style={{color:C.green}}>✅ Tech done</span>}
+              </div>
+              <div style={{fontSize:10,color:C.text3,marginTop:6}}>{fmtDate(a.createdAt)} {fmtTime(a.createdAt)}</div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+// ── SETTINGS ──────────────────────────────────────────────────────────────────
+function Settings({reconItems,onSaveRecon,onBack}){
+  const[techNames,setTechNames]=useLocal('apr_tech_names',['Technician 1']);
+  const[techPins,setTechPins]=useLocal('apr_tech_pins',{});
+  const[mgrPin,setMgrPin]=useLocal('apr_mgr_pin','1234');
+  const[newTech,setNewTech]=useState('');
+  const[newItem,setNewItem]=useState({name:'',cost:''});
+  const[saved,setSaved]=useState(false);
+
+  function saveAll(){setSaved(true);setTimeout(()=>setSaved(false),2000);}
+
+  return(
+    <div style={{maxWidth:600,margin:'0 auto',padding:'14px'}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:20}}>
+        <button onClick={onBack} style={{...S.btnGhost,padding:'6px 10px'}}>← Back</button>
+        <div style={{fontSize:18,fontWeight:900,color:C.gold}}>⚙️ Settings</div>
+      </div>
+
+      <div style={{...S.card}}>
+        <div style={S.section}>MANAGER PIN</div>
+        <Inp label="Change Manager PIN" value={mgrPin} onChange={e=>setMgrPin(e.target.value)} type="password" placeholder="4-digit PIN"/>
+      </div>
+
+      <div style={{...S.card}}>
+        <div style={S.section}>TECHNICIANS</div>
+        {techNames.map((n,i)=>(
+          <div key={i} style={{display:'flex',gap:8,marginBottom:8,alignItems:'center'}}>
+            <div style={{flex:1,padding:'8px 12px',background:C.card2,borderRadius:8,fontSize:13}}>{n}</div>
+            <input value={techPins[n]||''} onChange={e=>setTechPins({...techPins,[n]:e.target.value})} placeholder="PIN" type="password" style={{...S.inp,width:80,fontSize:13}}/>
+            <button onClick={()=>setTechNames(techNames.filter((_,j)=>j!==i))} style={{background:'none',border:'none',color:C.red,cursor:'pointer',fontSize:18}}>×</button>
+          </div>
+        ))}
+        <div style={{display:'flex',gap:8,marginTop:8}}>
+          <input value={newTech} onChange={e=>setNewTech(e.target.value)} placeholder="Technician name" style={{...S.inp,flex:1,fontSize:13}}/>
+          <button onClick={()=>{if(newTech.trim()){setTechNames([...techNames,newTech.trim()]);setNewTech('');}}} style={{...S.btnGold,padding:'8px 14px',fontSize:12}}>Add</button>
+        </div>
+      </div>
+
+      <div style={{...S.card}}>
+        <div style={S.section}>RECON ITEMS</div>
+        {reconItems.map((item,i)=>(
+          <div key={item.id} style={{display:'flex',gap:8,marginBottom:6,alignItems:'center'}}>
+            <div style={{flex:1,fontSize:12,color:C.text2}}>{item.name}</div>
+            <div style={{fontSize:12,color:C.gold,minWidth:65,textAlign:'right'}}>{fmtR(item.cost)}</div>
+            <button onClick={()=>onSaveRecon(reconItems.filter((_,j)=>j!==i))} style={{background:'none',border:'none',color:C.red,cursor:'pointer',fontSize:16}}>×</button>
+          </div>
+        ))}
+        <div style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:8,marginTop:10}}>
+          <input value={newItem.name} onChange={e=>setNewItem({...newItem,name:e.target.value})} placeholder="Item name" style={{...S.inp,fontSize:12}}/>
+          <input value={newItem.cost} onChange={e=>setNewItem({...newItem,cost:e.target.value})} placeholder="R Cost" type="number" style={{...S.inp,width:90,fontSize:12}}/>
+          <button onClick={()=>{if(newItem.name&&newItem.cost){onSaveRecon([...reconItems,{id:'c_'+Date.now(),name:newItem.name,cost:parseInt(newItem.cost)||0,qty:1}]);setNewItem({name:'',cost:''});}}} style={{...S.btnGold,padding:'8px 12px',fontSize:12}}>Add</button>
+        </div>
+      </div>
+
+      <button onClick={saveAll} style={{...S.btnGreen,width:'100%',padding:14,fontSize:15}}>
+        {saved?'✓ Settings Saved':'Save All Settings'}
+      </button>
+    </div>
+  );
+}
+
+// ── MAIN APP ──────────────────────────────────────────────────────────────────
+function AppraisalApp(){
+  const[user,setUser]=useState(null);
+  const[appraisals,setAppraisals]=useState({});
+  const[reconItems,setReconItems]=useLocal('apr_recon_items',DEFAULT_RECON);
+  const[screen,setScreen]=useState('list'); // list|edit|settings
+  const[editApr,setEditApr]=useState(null);
+  const[loading,setLoading]=useState(true);
+
+  useEffect(()=>{
+    fbGetAll().then(data=>{
+      if(data&&typeof data==='object')setAppraisals(data);
+      setLoading(false);
+    });
+  },[]);
+
+  function newAppraisal(){
+    var id=genId();
+    var apr={id,status:'active',vehicle:{},photos:{},techChecks:{},managerChecks:{},selectedRecon:{},createdAt:new Date().toISOString()};
+    setAppraisals(a=>({...a,[id]:apr}));
+    setEditApr(apr);
+    setScreen('edit');
+  }
+
+  function saveApr(updated){
+    setAppraisals(a=>({...a,[updated.id]:updated}));
+  }
+
+  if(!user)return<LoginScreen onLogin={setUser}/>;
+  if(loading)return(
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:C.bg}}>
+      <div style={{textAlign:'center',color:C.text2}}>
+        <div style={{fontSize:32,marginBottom:10}} className="pulse">🚗</div>
+        <div>Loading appraisals...</div>
+      </div>
+    </div>
+  );
+
+  // Tech sees only their view
+  if(user.role==='tech') return(
+    <div style={S.wrap}>
+      <div style={{background:C.card,borderBottom:'1px solid '+C.border,padding:'10px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div style={{fontSize:14,fontWeight:700,color:C.gold}}>🔧 Tech Portal — {user.name}</div>
+        <button onClick={()=>setUser(null)} style={{...S.btnGhost,fontSize:11}}>Sign Out</button>
+      </div>
+      <TechView user={user} appraisals={appraisals} onSubmit={saveApr}/>
+    </div>
+  );
+
+  // Manager view
+  return(
+    <div style={S.wrap}>
+      {/* Nav */}
+      <div style={{background:C.card,borderBottom:'1px solid '+C.border,padding:'10px 14px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:100}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <span style={{fontSize:22}}>🚗</span>
+          <div>
+            <div style={{fontSize:14,fontWeight:900,color:C.gold}}>NTT Appraisals</div>
+            <div style={{fontSize:10,color:C.text2}}>Manager View</div>
+          </div>
+        </div>
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={()=>setScreen('settings')} style={{...S.btnGhost,fontSize:11}}>⚙️ Settings</button>
+          <button onClick={()=>setUser(null)} style={{...S.btnGhost,fontSize:11}}>Sign Out</button>
+        </div>
+      </div>
+
+      {screen==='list'&&(
+        <AppraisalList
+          appraisals={appraisals}
+          onSelect={a=>{setEditApr(a);setScreen('edit');}}
+          onCreate={newAppraisal}
+        />
+      )}
+      {screen==='edit'&&editApr&&(
+        <AppraisalEditor
+          appraisal={editApr}
+          reconItems={reconItems}
+          onSave={saveApr}
+          onBack={()=>setScreen('list')}
+        />
+      )}
+      {screen==='settings'&&(
+        <Settings
+          reconItems={reconItems}
+          onSaveRecon={setReconItems}
+          onBack={()=>setScreen('list')}
+        />
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<AppraisalApp/>);
+</script>
+</body>
+</html>
