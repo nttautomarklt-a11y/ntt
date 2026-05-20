@@ -456,7 +456,10 @@ function WhatsAppGenerator({appraisal,reconItems,traders,onSaveTraders}){
     if(m.additionalNotes)lines.push('• Notes: '+m.additionalNotes);
     lines.push('');
     var photoCount=Object.keys(appraisal.photos||{}).length;
-    if(photoCount>0)lines.push('📸 *PHOTOS: '+photoCount+' images captured*\n(See attached gallery)');
+    if(photoCount>0){
+      lines.push('📸 *PHOTOS: '+photoCount+' images captured*');
+      lines.push('(Photos saved in appraisal system — see attached)');
+    }
     lines.push('');
     if(v.make&&v.model){
       var atUrl='https://www.autotrader.co.za/cars-for-sale?Year='+v.year+'&Make='+encodeURIComponent(v.make)+'&Model='+encodeURIComponent(v.model);
@@ -545,6 +548,39 @@ function WhatsAppGenerator({appraisal,reconItems,traders,onSaveTraders}){
         <div style={{fontSize:11,fontWeight:700,color:C.text2,marginBottom:8}}>MESSAGE PREVIEW</div>
         <pre style={{fontSize:11,color:C.text3,whiteSpace:'pre-wrap',lineHeight:1.6,maxHeight:300,overflow:'auto'}}>{buildMessage(traders[0]?.name||'')}</pre>
       </div>
+
+      {Object.keys(appraisal.photos||{}).length>0&&(
+        <div style={{marginTop:14}}>
+          <div style={{...S.section}}>PHOTO GALLERY — SAVE & ATTACH TO WHATSAPP</div>
+          <div style={{fontSize:11,color:C.text2,marginBottom:10}}>Long-press (mobile) or right-click (PC) each photo to save, then attach to WhatsApp manually.</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
+            {Object.entries(appraisal.photos||{}).map(function([key,photo]){return(
+              <div key={key} style={{borderRadius:9,overflow:'hidden',border:'1px solid '+C.border,position:'relative'}}>
+                <img src={photo.data} style={{width:'100%',height:80,objectFit:'cover',display:'block'}} alt={photo.name}/>
+                <div style={{padding:'4px 6px',background:C.card2}}>
+                  <div style={{fontSize:9,color:C.text2,lineHeight:1.2}}>{photo.name}</div>
+                </div>
+                <a href={photo.data} download={(photo.name||key)+'.jpg'} onClick={function(e){e.stopPropagation();}} style={{position:'absolute',top:4,right:4,background:'rgba(0,0,0,.7)',borderRadius:6,padding:'3px 6px',fontSize:10,color:'#fff',textDecoration:'none',cursor:'pointer'}}>
+                  ⬇
+                </a>
+              </div>
+            );})}
+          </div>
+          <button onClick={function(){
+            var entries=Object.entries(appraisal.photos||{});
+            entries.forEach(function([key,photo],i){
+              setTimeout(function(){
+                var a=document.createElement('a');
+                a.href=photo.data;
+                a.download=(photo.name||key)+'.jpg';
+                a.click();
+              },i*300);
+            });
+          }} style={{...S.btnBlue,width:'100%',marginTop:10,fontSize:13}}>
+            ⬇ Download All {Object.keys(appraisal.photos||{}).length} Photos
+          </button>
+        </div>
+      )}
     </div>
   );
 }
