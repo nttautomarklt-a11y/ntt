@@ -44,6 +44,7 @@ const STATUS_CONFIG={
   approved: {label:'APPROVED',       bg:'#e3f2fd',col:'#1565C0',border:'#90caf9'},
   delivered:{label:'DELIVERED',      bg:'#f3e5f5',col:'#6A0DAD',border:'#ce93d8'},
   declined: {label:'DECLINED',       bg:'#fce4ec',col:'#C0392B',border:'#e57373'},
+  waste:     {label:'WASTE OF TIME',  bg:'#f5f5f5',col:'#757575',border:'#bdbdbd'},
 };
 
 function stCfg(s){return STATUS_CONFIG[s]||STATUS_CONFIG.active;}
@@ -160,7 +161,7 @@ function FIApp(){
   if(tab==='all'){
     tabLeads=visibleLeads.filter(function(l){
       var s=(l._fiData&&l._fiData.status)||'active';
-      return s!=='declined';
+      return s!=='declined'&&s!=='waste';
     });
   } else if(tab==='declined'){
     tabLeads=visibleLeads.filter(function(l){return (l._fiData&&l._fiData.status)==='declined';});
@@ -198,12 +199,13 @@ function FIApp(){
 
   // Stats
   var counts={
-    all:visibleLeads.filter(l=>!(l._fiData&&l._fiData.status==='declined')).length,
+    all:visibleLeads.filter(l=>{var s=l._fiData&&l._fiData.status;return s!=='declined'&&s!=='waste';}).length,
     active:visibleLeads.filter(l=>(l._fiData&&l._fiData.status||'active')==='active').length,
     awaiting_docs:visibleLeads.filter(l=>(l._fiData&&l._fiData.status)==='awaiting_docs').length,
     approved:visibleLeads.filter(l=>(l._fiData&&l._fiData.status)==='approved').length,
     delivered:visibleLeads.filter(l=>(l._fiData&&l._fiData.status)==='delivered').length,
     declined:visibleLeads.filter(l=>(l._fiData&&l._fiData.status)==='declined').length,
+    waste:visibleLeads.filter(l=>(l._fiData&&l._fiData.status)==='waste').length,
   };
 
   var TABS=[
@@ -213,6 +215,7 @@ function FIApp(){
     {key:'approved',label:'Approved',count:counts.approved,col:'#1565C0'},
     {key:'delivered',label:'Delivered',count:counts.delivered,col:'#6A0DAD'},
     {key:'declined',label:'Declined',count:counts.declined,col:'#C0392B'},
+    {key:'waste',label:'Waste of Time',count:counts.waste,col:'#757575'},
   ];
 
   return(
@@ -346,6 +349,7 @@ const DetailPanel=memo(function({lead,fiEntry,onUpdate,onDelete,onClose}){
     {key:'approved',label:'APPROVED',col:'#1565C0'},
     {key:'delivered',label:'DELIVERED',col:'#6A0DAD'},
     {key:'declined',label:'DECLINED',col:'#C0392B'},
+    {key:'waste',label:'WASTE OF TIME',col:'#757575'},
   ];
 
   var phone=getPhone(lead);
