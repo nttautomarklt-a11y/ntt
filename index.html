@@ -543,9 +543,9 @@ const {useState,useEffect,useCallback,memo,useRef}=React;
 
 // ── HELPERS ──────────────────────────────────────────────────────────────────
 const monthSales=p=>p.weeks.reduce((a,w)=>a+(w.sales||0),0);
-const monthLC=p=>p.weeks.reduce((a,w)=>a+(w.leadsClosed||0),0);
+const monthLC=p=>(p.leads||[]).filter(l=>l.leadStatus==="delivered").length;
 const leadsRec=p=>(p.leads||[]).length;
-const convRate=p=>{const lr=leadsRec(p);return lr>0?Math.round((monthLC(p)/lr)*100):0;};
+const convRate=p=>{const lr=leadsRec(p);const lc=monthLC(p);return lr>0?Math.round((lc/lr)*100):0;};
 function loadAppData(){try{const r=localStorage.getItem(SAVE_KEY);return r?JSON.parse(r):null;}catch{return null;}}
 function saveTodo(d){try{localStorage.setItem("ntt_todo",JSON.stringify(d));fbPushPath("todo",d);}catch{}}
 function loadTodo(){try{const d=localStorage.getItem("ntt_todo");return d?JSON.parse(d):[]}catch{return[];}}
@@ -760,6 +760,197 @@ const ScriptsPanel=memo(()=>{
           </div>
         ))
       }
+    </div>
+  );
+});
+
+
+// ── SCORECARD PANEL ──────────────────────────────────────────────────────────
+var SC_TARGETS={
+  weekly:{units:2,apps:7,trades:1,gp:112500,rpu:50000,conv:10},
+  monthly:{units:9,apps:25,trades:4,gp:450000,rpu:50000,conv:10}
+};
+function scFmtR(n){
+  n=Number(n)||0;
+  if(n>=1000000)return"R"+(n/1000000).toFixed(2)+"M";
+  if(n>=1000)return"R"+Math.round(n/1000)+"k";
+  return"R"+Math.round(n);
+}
+const ScorecardPanel=memo(function({person,myLeads,pName}){
+  const [view,setView]=useState("weekly");
+  const [advice,setAdvice]=useState("");
+  const [advLoad,setAdvLoad]=useState(false);
+  const [pDataSC,setPDataSC]=useState(()=>{try{const d=localStorage.getItem("ntt_graphs_p");return d?JSON.parse(d):{};}catch(e){return{};}});
+  useEffect(()=>{
+    function sync(){try{const d=localStorage.getItem("ntt_graphs_p");if(d)setPDataSC(JSON.parse(d));}catch(e){}}
+    sync();const iv=setInterval(sync,5000);return ()=>clearInterval(iv);
+  },[]);
+
+  const curWk=getCurWeek();
+  const weeks=person.weeks||[{},{},{},{}];
+  const wk=weeks[curWk]||{};
+  const MO_SC=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const curMo=MO_SC[new Date().getMonth()];
+  const curYr=new Date().getFullYear();
+
+  const pKeyUC=(pName||"").toUpperCase();
+  const pKeyFound=Object.keys(pDataSC).find(k=>k.toUpperCase()===pKeyUC||k.toUpperCase()===pKeyUC.split(" ")[0])||pName;
+  const pRow=pDataSC[pKeyFound]||{};
+  const gpMo=Number((pRow.gp||{})[curMo])||0;
+  const rpuMo=Number((pRow.rpu||{})[curMo])||0;
+
+  const moUnits=weeks.reduce((a,w)=>a+(w.sales||0),0);
+  const moApps=weeks.reduce((a,w)=>a+(w.applications||0),0);
+  const moTrades=weeks.reduce((a,w)=>a+(w.tradeIns||0),0);
+  const totalLeads=(myLeads||[]).length;
+  const deliveredLeads=(myLeads||[]).filter(l=>l.leadStatus==="delivered").length;
+  const convPct=totalLeads>0?Math.round((deliveredLeads/totalLeads)*100):0;
+
+  const isWk=view==="weekly";
+  const tgt=isWk?SC_TARGETS.weekly:SC_TARGETS.monthly;
+
+  const metrics=[
+    {key:"units",label:"Units Sold",icon:"🚗",actual:isWk?wk.sales||0:moUnits,target:tgt.units,fmt:n=>""+n,isR:false},
+    {key:"apps",label:"Applications",icon:"📋",actual:isWk?wk.applications||0:moApps,target:tgt.apps,fmt:n=>""+n,isR:false},
+    {key:"trades",label:"Trade-Ins",icon:"🔄",actual:isWk?wk.tradeIns||0:moTrades,target:tgt.trades,fmt:n=>""+n,isR:false},
+    {key:"conv",label:"Lead Conversion",icon:"🎯",actual:convPct,target:tgt.conv,fmt:n=>n+"%",isR:false,sub:"Target: 1 in 10"},
+    {key:"gp",label:"Gross Profit",icon:"💰",actual:gpMo,target:tgt.gp,fmt:scFmtR,isR:true},
+    {key:"rpu",label:"Rand Per Unit",icon:"📊",actual:rpuMo,target:tgt.rpu,fmt:scFmtR,isR:true}
+  ];
+
+  function getPct(a,t){return t?Math.min(Math.round((a/t)*100),999):0;}
+  function getCol(p){return p>=100?"#1E8449":p>=70?"#F57F17":"#C0392B";}
+  function getIco(p){return p>=100?"✅":p>=70?"⚠️":"❌";}
+
+  const avgPct=Math.round(metrics.reduce((a,m)=>a+Math.min(getPct(m.actual,m.target),100),0)/metrics.length);
+  const grade=avgPct>=90?{g:"A",c:"#1E8449",msg:"Excellent — keep it up!"}:
+    avgPct>=75?{g:"B",c:"#2E86AB",msg:"Good — push harder on the gaps."}:
+    avgPct>=60?{g:"C",c:"#F57F17",msg:"Average — focused effort needed."}:
+    avgPct>=40?{g:"D",c:"#E67E22",msg:"Below expectations — urgent action."}:
+    {g:"F",c:"#C0392B",msg:"Critical — speak to your manager."};
+
+  function genAdvice(){
+    setAdvLoad(true);setAdvice("");
+    const period=isWk?"Week "+(curWk+1)+" of 4 ("+curMo+")":"Full month of "+curMo;
+    const lines=metrics.map(m=>{
+      const p=getPct(m.actual,m.target);
+      return"- "+m.label+": "+m.fmt(m.actual)+" vs target "+m.fmt(m.target)+" ("+Math.min(p,100)+"%) — "+(p>=100?"ON TARGET":p>=70?"BEHIND":"WELL BEHIND");
+    }).join("\n");
+    const firstName=pName.split(" ")[0];
+    const prompt="You are a tough but fair used car sales coach at NTT Toyota Louis Trichardt AUTOMARK in South Africa. Give personalised, direct coaching advice to "+pName+" for "+period+".\n\nPERFORMANCE:\n"+lines+"\nGrade: "+grade.g+" ("+avgPct+"%)\n\nWrite 3-4 short paragraphs. Be specific and direct. Reference actual numbers. Focus on biggest gaps first. End with one motivational sentence. Under 200 words. Address them as "+firstName+". Flowing paragraphs only.";
+    fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:400,messages:[{role:"user",content:prompt}]})
+    }).then(r=>r.json()).then(data=>{
+      setAdvice((data.content&&data.content[0]&&data.content[0].text)||"Could not generate. Try again.");
+    }).catch(()=>setAdvice("Connection error. Try again.")).finally(()=>setAdvLoad(false));
+  }
+
+  function doPrint(){
+    const rows=metrics.map(m=>{
+      const p=getPct(m.actual,m.target);
+      const cls=p>=100?"gn":p>=70?"am":"rd";
+      const st=p>=100?"On Target":p>=70?"Behind":"Well Behind";
+      return "<tr><td>"+m.icon+" "+m.label+(m.sub?" <em>("+m.sub+")</em>":"")+"</td><td>"+m.fmt(m.actual)+"</td><td>"+m.fmt(m.target)+"</td><td class='"+cls+"'>"+Math.min(p,100)+"%</td><td class='"+cls+"'>"+st+"</td></tr>";
+    }).join("");
+    const advHtml=advice?"<h3 style='font-size:13px;margin:14px 0 6px'>AI Coaching Advice</h3><div style='background:#f9f9f9;border-left:4px solid #1A6FAD;padding:12px;font-size:12px;line-height:1.7'>"+advice.replace(/\n\n/g,"<br/><br/>")+"</div>":"";
+    const gcss="color:"+grade.c+";border:3px solid "+grade.c;
+    const html=[
+      "<!DOCTYPE html><html><head><meta charset='UTF-8'/>",
+      "<style>body{font-family:Arial,sans-serif;padding:20px;max-width:680px;margin:0 auto}",
+      "h1{font-size:18px;margin:0 0 2px}.sub{color:#888;font-size:12px;margin:0 0 14px}",
+      "table{width:100%;border-collapse:collapse}th{background:#1A6FAD;color:#fff;padding:8px;text-align:left;font-size:11px}",
+      "td{padding:8px;border-bottom:1px solid #eee;font-size:12px}",
+      ".gn{color:#1E8449;font-weight:700}.am{color:#F57F17;font-weight:700}.rd{color:#C0392B;font-weight:700}",
+      ".gb{display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:26px;font-size:26px;font-weight:900;"+gcss+"}",
+      ".foot{margin-top:16px;font-size:10px;color:#aaa;border-top:1px solid #eee;padding-top:6px}</style></head><body>",
+      "<h1>"+pName+"</h1>",
+      "<p class='sub'>Performance Report &bull; "+(isWk?"Week "+(curWk+1)+" of 4":curMo+" "+curYr+" Month Total")+"</p>",
+      "<div class='gb'>"+grade.g+"</div>&nbsp;<span style='font-size:13px;color:"+grade.c+"'>"+grade.msg+"</span><br/><br/>",
+      "<table><tr><th>Metric</th><th>Actual</th><th>Target</th><th>%</th><th>Status</th></tr>"+rows+"</table>",
+      advHtml,
+      "<div class='foot'>Printed "+new Date().toLocaleString("en-ZA")+" &bull; NTT Toyota Louis Trichardt AUTOMARK</div>",
+      "</body></html>"
+    ].join("");
+    const w=window.open("","_blank");
+    w.document.write(html);
+    w.document.close();
+    setTimeout(()=>w.print(),500);
+  }
+
+  return(
+    <div className="fade">
+      <div style={{background:"linear-gradient(135deg,#1A6FAD,#0d4a7a)",borderRadius:12,padding:"14px 16px",marginBottom:14,color:"#fff"}}>
+        <div style={{fontSize:16,fontWeight:900}}>🏆 My Performance</div>
+        <div style={{fontSize:12,opacity:.75,marginTop:2}}>{curMo} {curYr} · NTT Toyota Louis Trichardt</div>
+      </div>
+
+      <div style={{display:"flex",gap:8,marginBottom:14}}>
+        {["weekly","monthly"].map(k=>(
+          <button key={k} onClick={()=>{setView(k);setAdvice("");}} style={{flex:1,padding:10,borderRadius:9,border:"2px solid "+(view===k?"#1A6FAD":"#e0e0e0"),background:view===k?"#1A6FAD":"#fff",color:view===k?"#fff":"#555",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+            {k==="weekly"?"📅 This Week":"📆 This Month"}
+          </button>
+        ))}
+      </div>
+
+      <div style={{background:grade.c+"15",border:"2px solid "+grade.c+"40",borderRadius:12,padding:"14px 16px",marginBottom:14,display:"flex",alignItems:"center",gap:14}}>
+        <div style={{width:56,height:56,borderRadius:28,background:grade.c,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,fontWeight:900,color:"#fff",flexShrink:0}}>{grade.g}</div>
+        <div>
+          <div style={{fontWeight:800,fontSize:15,color:grade.c}}>{grade.msg}</div>
+          <div style={{fontSize:12,color:"#888",marginTop:2}}>{isWk?"Week "+(curWk+1)+" of 4":curMo+" Month"} · {avgPct}% overall</div>
+        </div>
+      </div>
+
+      <div style={{display:"grid",gap:8,marginBottom:14}}>
+        {metrics.map(m=>{
+          const p=getPct(m.actual,m.target);const c=getCol(p);const bw=Math.min(p,100);
+          const behindAmt=m.isR?scFmtR(Math.max(m.target-m.actual,0)):(Math.max(m.target-m.actual,0))+(m.key==="conv"?"%":"");
+          return(
+            <div key={m.key} style={{background:"#fff",borderRadius:10,border:"1px solid #f0f0f0",padding:"12px 14px",boxShadow:"0 1px 3px rgba(0,0,0,.04)"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                <div>
+                  <div style={{fontWeight:700,fontSize:13}}>{m.icon} {m.label}</div>
+                  {m.sub&&<div style={{fontSize:10,color:"#aaa",marginTop:1}}>{m.sub}</div>}
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:11,color:"#aaa"}}>Target: {m.fmt(m.target)}</div>
+                  <div style={{fontSize:18,fontWeight:900,color:c}}>{m.fmt(m.actual)}</div>
+                </div>
+              </div>
+              <div style={{background:"#f0f0f0",borderRadius:99,height:8,overflow:"hidden",marginBottom:4}}>
+                <div style={{width:bw+"%",height:"100%",background:c,borderRadius:99}}/>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}>
+                <span style={{color:c,fontWeight:700}}>{getIco(p)} {bw}% of target</span>
+                {p>=100?<span style={{color:"#1E8449",fontWeight:700}}>On Target! 🎉</span>
+                :<span style={{color:c}}>{behindAmt} behind</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{background:"#f8f9fa",borderRadius:12,border:"1px solid #e0e0e0",padding:"14px 16px",marginBottom:12}}>
+        <div style={{fontWeight:700,fontSize:14,marginBottom:8}}>🤖 AI Coaching Advice</div>
+        {!advice&&!advLoad&&(
+          <div>
+            <div style={{fontSize:12,color:"#888",marginBottom:10}}>Get personalised coaching based on your numbers vs targets.</div>
+            <button onClick={genAdvice} style={{width:"100%",padding:11,borderRadius:9,border:"none",background:"#1A6FAD",color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer"}}>Generate My Coaching Advice</button>
+          </div>
+        )}
+        {advLoad&&<div style={{textAlign:"center",padding:"16px 0",color:"#888"}}><div style={{fontSize:22,marginBottom:6}}>⏳</div><div style={{fontSize:13}}>Analysing your performance...</div></div>}
+        {advice&&(
+          <div>
+            <div style={{fontSize:13,color:"#333",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{advice}</div>
+            <button onClick={genAdvice} style={{marginTop:10,padding:"7px 14px",borderRadius:8,border:"1px solid #ddd",background:"#fff",cursor:"pointer",fontSize:12,color:"#555"}}>Regenerate</button>
+          </div>
+        )}
+      </div>
+
+      <button onClick={doPrint} style={{width:"100%",padding:12,borderRadius:9,border:"1px solid #1A6FAD",background:"#fff",color:"#1A6FAD",fontWeight:700,fontSize:14,cursor:"pointer"}}>
+        🖨️ Print Performance Report
+      </button>
     </div>
   );
 });
@@ -1047,7 +1238,7 @@ const [selLead,setSelLead]=useState(null);
         fbPushPath("people",ppl);
       }catch(e){}
     };
-    const open=myLeads.filter(l=>!l.sold&&l.leadStatus!=="declined"&&l.leadStatus!=="cold");
+    const open=myLeads.filter(l=>!l.sold&&l.leadStatus!=="declined"&&l.leadStatus!=="cold"&&l.leadStatus!=="future");
     const declined=myLeads.filter(l=>l.leadStatus==="declined");
     const sold=myLeads.filter(l=>l.sold);
     return(
@@ -1169,6 +1360,7 @@ const Dashboard=memo(({pName,onLogout,appData})=>{
   const soldUnits=appData.soldUnits||[];
   const stock=appData.stock||[];
   const myUnits=monthSales(person),myLC=monthLC(person),myLR=leadsRec(person),myConv=convRate(person);
+  const myActive=(myLeads||[]).filter(function(l){return l.leadStatus==="active"||!l.leadStatus;}).length;
   const myApps=person.weeks.reduce((a,w)=>a+(w.applications||0),0);
   const vScores=teamPeople.map(p=>calcScore(p.weeks[vwk]||{}));
   const myScore=calcScore(person.weeks[vwk]||{});
@@ -1189,7 +1381,7 @@ const Dashboard=memo(({pName,onLogout,appData})=>{
     {id:"training",label:"📚 Training"},{id:"scripts",label:"🥊 Scripts"},
     {id:"videos",label:"🎬 Videos"},{id:"shorts",label:"⚡ Shorts"},
     {id:"stock",label:"🚗 Stock"},{id:"todo",label:"📝 To Do"},
-    {id:"graphs",label:"📈 Graphs"},{id:"find",label:"🔍 Find"},
+    {id:"graphs",label:"📈 Graphs"},{id:"scorecard",label:"🏆 Performance"},{id:"find",label:"🔍 Find"},
     {id:"reports",label:"📊 Reports"},
   ];
   const renderHome=()=>(
@@ -1209,7 +1401,7 @@ const Dashboard=memo(({pName,onLogout,appData})=>{
         {kpi("Conv%",myConv+"%","","#6A0DAD")}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-        {kpi("Leads In",myLR,"","#C9A84C")}
+        {kpi("Active Leads",myActive,"","#C9A84C")}
         {kpi("Applications",myApps,"month total","#1A6FAD")}
       </div>
       <Card title={"🏆 Tracker 1 – Monthly Units · Target "+(TARGET||9)}>
