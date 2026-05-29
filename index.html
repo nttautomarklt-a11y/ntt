@@ -1610,7 +1610,7 @@ const Dashboard=memo(({pName,onLogout,appData})=>{
 
 // ── ROOT ──────────────────────────────────────────────────────────────────────
 
-const LoginScreen=memo(({onLogin,people,onPeopleLoaded})=>{
+const LoginScreen=(({onLogin,people,onPeopleLoaded})=>{
   const [localPpl,setLocalPpl]=useState(people.length>0?people:[]);
   const [selName,setSelName]=useState('');
   const [pw,setPw]=useState('');
@@ -1623,10 +1623,12 @@ const LoginScreen=memo(({onLogin,people,onPeopleLoaded})=>{
       fetch(FB_PATH).then(function(r){return r.json();}).then(function(d){
         if(d&&d.people&&d.people.length){window._nttPeople=d.people;setLocalPpl(d.people);if(onPeopleLoaded)onPeopleLoaded(d.people);}
         else{setErr('Could not load team. Check internet.');}
-      }).catch(function(){setErr('Network error. Check connection.');});
+      }).catch(function(){setErr('Network error.');});
     }
   },[]);
-  function doLogin(){
+  function doLogin(e){
+    if(e&&e.preventDefault)e.preventDefault();
+    setTaps(function(x){return x+1;});
     if(!selName){setErr('Select your name first.');return;}
     if(!pw){setErr('Type your password.');return;}
     var p2=localPpl.length>0?localPpl:(window._nttPeople||people);
@@ -1644,23 +1646,24 @@ const LoginScreen=memo(({onLogin,people,onPeopleLoaded})=>{
           <div style={{fontSize:38,marginBottom:6}}>&#127942;</div>
           <div style={{fontSize:10,color:'#C9A84C',fontWeight:700,letterSpacing:3,marginBottom:3}}>NTT TOYOTA LOUIS TRICHARDT</div>
           <div style={{fontSize:26,fontWeight:900,color:'#fff',marginBottom:2}}>AUTOMARK</div>
-          <div style={{fontSize:11,color:'#555'}}>Sales Platform</div><div style={{fontSize:13,color:'#0f0',fontWeight:900,marginTop:6}}>BUILD-MAY29-1</div>
+          <div style={{fontSize:11,color:'#555'}}>Sales Platform</div>
+          <div style={{fontSize:13,color:'#0f0',fontWeight:900,marginTop:6}}>BUILD-MAY29-2</div>
         </div>
         {names.length===0?(
           <div style={{textAlign:'center',color:'#C9A84C',padding:'20px',fontSize:13}}>{err||'Loading team data...'}</div>
         ):(
-          <div>
+          <form onSubmit={doLogin}>
             <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>1. SELECT YOUR NAME</div>
-            <select value={selName} onChange={e=>{setSelName(e.target.value);setErr('');}} style={fS}>
+            <select value={selName} onChange={function(e){setSelName(e.target.value);setErr('');}} style={fS}>
               <option value=''>-- Select your name --</option>
-              {names.map(p=><option key={p.name} value={p.name}>{p.name}{p.password?' \u2713':''}</option>)}
+              {names.map(function(p){return <option key={p.name} value={p.name}>{p.name}{p.password?' \u2713':''}</option>;})}
             </select>
             <div style={{fontSize:12,fontWeight:700,color:'#888',marginBottom:8}}>2. TYPE YOUR PASSWORD</div>
-            <input value={pw} onChange={e=>{setPw(e.target.value);setErr('');}} onKeyDown={e=>{if(e.key==='Enter'||e.keyCode===13){e.preventDefault();doLogin();}}} type='password' placeholder='Type your password' autoCapitalize='none' autoCorrect='off' spellCheck='false' enterKeyHint='go' style={fS}/>
+            <input value={pw} onChange={function(e){setPw(e.target.value);setErr('');}} type='password' placeholder='Type your password' autoCapitalize='none' autoCorrect='off' spellCheck='false' enterKeyHint='go' style={fS}/>
             {err?<div style={{color:'#ff6b6b',fontSize:14,marginBottom:14,textAlign:'center',fontWeight:700}}>{err}</div>:null}
-            <button type='button' onClick={function(){setTaps(t=>t+1);doLogin();}} style={{width:'100%',padding:'20px',borderRadius:11,background:'#C9A84C',color:'#000',fontSize:20,fontWeight:900,border:'none',cursor:'pointer',boxSizing:'border-box',fontFamily:'inherit',WebkitAppearance:'none',touchAction:'manipulation',WebkitTapHighlightColor:'rgba(0,0,0,0.2)'}}>ENTER {taps>0?'('+taps+')':''}</button>
+            <button type='submit' style={{width:'100%',padding:'20px',borderRadius:11,background:'#C9A84C',color:'#000',fontSize:20,fontWeight:900,border:'none',cursor:'pointer',boxSizing:'border-box',fontFamily:'inherit',WebkitAppearance:'none',touchAction:'manipulation'}}>ENTER {taps>0?'('+taps+')':''}</button>
             <div style={{textAlign:'center',marginTop:14,fontSize:11,color:'#444'}}>Forgot password? Ask your manager.</div>
-          </div>
+          </form>
         )}
       </div>
     </div>
@@ -1711,7 +1714,7 @@ function SalesmanApp(){
   useEffect(function(){if(window._nttPendingLogin){var _p=window._nttPendingLogin;window._nttPendingLogin=null;setName(_p);}},[]);
   const logout=()=>{setName(null);window._nttLoggedInAs=null;document.getElementById("ntt-login-screen").style.display="flex";document.getElementById("ntt-pw").value="";setTimeout(function(){window.nttBuildNames&&window.nttBuildNames();},100);};
   const people=(appData.people)||[];
-  if(!name)return<LoginScreen onLogin={login} people={people}/>;
+  if(!name)return<LoginScreen onLogin={login} people={people} onPeopleLoaded={function(ppl){var ex=Object.assign({},loadAppData()||{});ex.people=ppl;try{localStorage.setItem(SAVE_KEY,JSON.stringify(ex));}catch(e){}setAppData(Object.assign({},ex));}}/>;
   return<Dashboard pName={name} onLogout={logout} appData={appData}/>;
 }
 
