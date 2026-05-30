@@ -33,14 +33,14 @@ const MONTH_NAME="May 2026";
 const CUR_MONTH_TAG=new Date().getFullYear()+"-"+new Date().getMonth();
 function leadMonthTag(l){ if(l&&l.monthTag)return l.monthTag; if(l&&l.ts){var d=new Date(l.ts);return d.getFullYear()+"-"+d.getMonth();} return "2026-4"; }
 function isCurrentMonthLead(l){ return leadMonthTag(l)===CUR_MONTH_TAG; }
-const MONTH_START=new Date(2026,4,4);
+const MONTH_START=new Date(2026,5,1);
 const TARGET=9,TEAM_SIZE=5,WEEKLY_PRIZE=2000;
 const JSONBIN_API="https://api.jsonbin.io/v3/b";
 const WEEK_RANGES=[
-  {label:"Week 1",dates:"4–10 May",start:new Date(2026,4,4),end:new Date(2026,4,10)},
-  {label:"Week 2",dates:"11–17 May",start:new Date(2026,4,11),end:new Date(2026,4,17)},
-  {label:"Week 3",dates:"18–24 May",start:new Date(2026,4,18),end:new Date(2026,4,24)},
-  {label:"Week 4",dates:"25–31 May",start:new Date(2026,4,25),end:new Date(2026,4,31)},
+  {label:"Week 1",dates:"1–7 Jun",start:new Date(2026,5,1),end:new Date(2026,5,7)},
+  {label:"Week 2",dates:"8–14 Jun",start:new Date(2026,5,8),end:new Date(2026,5,14)},
+  {label:"Week 3",dates:"15–21 Jun",start:new Date(2026,5,15),end:new Date(2026,5,21)},
+  {label:"Week 4",dates:"22–28 Jun",start:new Date(2026,5,22),end:new Date(2026,5,28)},
 ];
 function getCurWeek(){const d=Math.floor((new Date()-MONTH_START)/864e5);return Math.min(Math.max(d<0?0:Math.floor(d/7),0),3);}
 function calcScore(w){return w.sales*5+w.leadsClosed*2+w.applications+(w.trainingPoints||0);}
@@ -799,7 +799,11 @@ const ScorecardPanel=memo(function({person,myLeads,pName}){
   const [pDataSC,setPDataSC]=useState(()=>{try{const d=localStorage.getItem("ntt_graphs_p");return d?JSON.parse(d):{};}catch(e){return{};}});
   useEffect(()=>{
     function sync(){try{const d=localStorage.getItem("ntt_graphs_p");if(d)setPDataSC(JSON.parse(d));}catch(e){}}
-    sync();const iv=setInterval(sync,5000);return ()=>clearInterval(iv);
+    sync();
+    window.addEventListener("nttGPUpdate",sync);
+    window.addEventListener("storage",function(e){if(e.key==="ntt_graphs_p")sync();});
+    const iv=setInterval(sync,8000);
+    return ()=>{clearInterval(iv);window.removeEventListener("nttGPUpdate",sync);};
   },[]);
 
   const curWk=getCurWeek();
@@ -1006,9 +1010,13 @@ const GraphsPanel=memo(({pColor,pName})=>{
   useEffect(function(){
     function syncP(){try{var d=localStorage.getItem("ntt_graphs_p");if(d)setPData(JSON.parse(d));}catch(e){}}
     function pullFb(){try{fetch(FB_PATH).then(function(r){return r.json();}).then(function(d){if(d&&d.graphsP){try{localStorage.setItem("ntt_graphs_p",JSON.stringify(d.graphsP));}catch(e){}setPData(d.graphsP);}if(d&&d.graphs){try{localStorage.setItem("ntt_graphs",JSON.stringify(d.graphs));}catch(e){}}}).catch(function(){});}catch(e){}}
+    function onGPEvent(){syncP();}
+    function onStorageEvent(e){if(e.key==="ntt_graphs_p")syncP();}
     syncP();pullFb();
-    var iv=setInterval(function(){syncP();pullFb();},5000);
-    return function(){clearInterval(iv);};
+    window.addEventListener("nttGPUpdate",onGPEvent);
+    window.addEventListener("storage",onStorageEvent);
+    var iv=setInterval(function(){syncP();pullFb();},8000);
+    return function(){clearInterval(iv);window.removeEventListener("nttGPUpdate",onGPEvent);window.removeEventListener("storage",onStorageEvent);};
   },[]);
   const metric=METRICS.find(function(m){return m.key===active;})||METRICS[0];
   const col=metric.color;const pre=metric.prefix;
@@ -1760,7 +1768,7 @@ const LoginScreen=(({onLogin,people,onPeopleLoaded})=>{
           <div style={{fontSize:10,color:'#C9A84C',fontWeight:700,letterSpacing:3,marginBottom:3}}>NTT TOYOTA LOUIS TRICHARDT</div>
           <div style={{fontSize:26,fontWeight:900,color:'#fff',marginBottom:2}}>AUTOMARK</div>
           <div style={{fontSize:11,color:'#555'}}>Sales Platform</div>
-          <div style={{fontSize:13,color:'#0f0',fontWeight:900,marginTop:6}}>BUILD-MAY30-5</div>
+          <div style={{fontSize:13,color:'#0f0',fontWeight:900,marginTop:6}}>BUILD-MAY30-6</div>
         </div>
         {names.length===0?(
           <div style={{textAlign:'center',color:'#C9A84C',padding:'20px',fontSize:13}}>{err||'Loading team data...'}</div>
@@ -1802,7 +1810,7 @@ function SalesmanApp(){
           if(d.todo)try{localStorage.setItem("ntt_todo",JSON.stringify(d.todo));}catch(e){}
           if(d.find)try{localStorage.setItem("ntt_find",JSON.stringify(d.find));}catch(e){}
           if(d.graphs)try{localStorage.setItem("ntt_graphs",JSON.stringify(d.graphs));}catch(e){}
-          if(d.graphsP)try{localStorage.setItem("ntt_graphs_p",JSON.stringify(d.graphsP));}catch(e){}
+          if(d.graphsP){try{localStorage.setItem("ntt_graphs_p",JSON.stringify(d.graphsP));}catch(e){}try{window.dispatchEvent(new Event("nttGPUpdate"));}catch(e){}}
           if(d.stock)try{localStorage.setItem("ntt_sl",JSON.stringify(d.stock));}catch(e){}
           if(d.stockDemo)try{localStorage.setItem("ntt_sl_demo",JSON.stringify(d.stockDemo));}catch(e){}
           if(d.shorts)try{localStorage.setItem("ntt_shorts_daily",JSON.stringify(d.shorts));}catch(e){}
