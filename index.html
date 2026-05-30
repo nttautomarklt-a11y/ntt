@@ -814,7 +814,7 @@ const ScorecardPanel=memo(function({person,myLeads,pName}){
   const curYr=new Date().getFullYear();
 
   const pKeyUC=(pName||"").toUpperCase();
-  const pKeyFound=Object.keys(pDataSC).find(k=>k.toUpperCase()===pKeyUC||k.toUpperCase()===pKeyUC.split(" ")[0])||pName;
+  const pKeyFound=Object.keys(pDataSC).find(k=>k.toUpperCase()===pKeyUC.split(" ")[0])||Object.keys(pDataSC).find(k=>k.toUpperCase()===pKeyUC)||pName;
   const pRow=pDataSC[pKeyFound]||{};
   const gpMo=Number((pRow.gp||{})[curMo])||0;
   const rpuMo=Number((pRow.rpu||{})[curMo])||0;
@@ -1021,7 +1021,14 @@ const GraphsPanel=memo(({pColor,pName})=>{
   const metric=METRICS.find(function(m){return m.key===active;})||METRICS[0];
   const col=metric.color;const pre=metric.prefix;
   const tVals=MO.map(function(m){var _v=(teamData[active]||{})[m];return!_v&&_v!==0?0:parseFloat(typeof _v==="string"?_v.replace(/[^0-9.]/g,""):_v)||0;});
-  const pKey=(function(){var n=(pName||"").toUpperCase();var n1=n.split(" ")[0];var keys=Object.keys(pData);return keys.find(function(k){return k.toUpperCase()===n;})||keys.find(function(k){return k.toUpperCase()===n1;})||keys.find(function(k){return k.toUpperCase().split(" ")[0]===n1;})||keys.find(function(k){return n.startsWith(k.toUpperCase());})||keys.find(function(k){return k.toUpperCase().startsWith(n1);})||pName;})();const myRaw=((pData[pKey]||{})[active])||{};
+  const pKey=(function(){var n=(pName||"").toUpperCase();var n1=n.split(" ")[0];var keys=Object.keys(pData);
+    // Prefer short key (manager-entered, e.g. "MICHELLE") over full login name (e.g. "MICHELLE S")
+    return keys.find(function(k){return k.toUpperCase()===n1;})||
+           keys.find(function(k){return k.toUpperCase()===n;})||
+           keys.find(function(k){return k.toUpperCase().split(" ")[0]===n1;})||
+           keys.find(function(k){return n.startsWith(k.toUpperCase());})||
+           keys.find(function(k){return k.toUpperCase().startsWith(n1);})||pName;
+  })();const myRaw=((pData[pKey]||{})[active])||{};
   const myVals=MO.map(function(m){var v=myRaw[m];return!v&&v!==0?0:parseFloat(typeof v==="string"?v.replace(/[^0-9.]/g,""):v)||0;});
   const fmtV=function(v){return v>=1000000?(v/1000000).toFixed(1)+"m":v>=1000?Math.round(v/1000)+"k":String(v);};
   const sumV=function(a){return a.reduce(function(s,v){return s+v;},0);};
@@ -1768,7 +1775,7 @@ const LoginScreen=(({onLogin,people,onPeopleLoaded})=>{
           <div style={{fontSize:10,color:'#C9A84C',fontWeight:700,letterSpacing:3,marginBottom:3}}>NTT TOYOTA LOUIS TRICHARDT</div>
           <div style={{fontSize:26,fontWeight:900,color:'#fff',marginBottom:2}}>AUTOMARK</div>
           <div style={{fontSize:11,color:'#555'}}>Sales Platform</div>
-          <div style={{fontSize:13,color:'#0f0',fontWeight:900,marginTop:6}}>BUILD-MAY30-6</div>
+          <div style={{fontSize:13,color:'#0f0',fontWeight:900,marginTop:6}}>BUILD-MAY30-7</div>
         </div>
         {names.length===0?(
           <div style={{textAlign:'center',color:'#C9A84C',padding:'20px',fontSize:13}}>{err||'Loading team data...'}</div>
