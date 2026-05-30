@@ -1334,11 +1334,28 @@ const [selLead,setSelLead]=useState(null);
         <div style={{background:"linear-gradient(135deg,#1E8449,#155a30)",borderRadius:12,padding:"12px 14px",marginBottom:10,color:"#fff"}}>
           <div style={{fontSize:15,fontWeight:700}}>📥 My Leads</div>
           </div>
+          {(function(){
+            var now=new Date();now.setHours(23,59,59,999);
+            var due=myLeads.filter(function(l){
+              if(l.leadStatus!=="future")return false;
+              if(!l.futureDate&&!l.futureDateMs)return false;
+              var dms=l.futureDateMs||(l.futureDate?new Date(l.futureDate).getTime():0);
+              return dms&&dms<=now.getTime();
+            });
+            if(due.length===0)return null;
+            return(<div style={{background:"#fff8e1",border:"2px solid #FFC107",borderRadius:12,padding:"12px 14px",marginBottom:10}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#E65100",marginBottom:6}}>🔔 {due.length} Future Lead{due.length>1?"s":""} due for follow-up!</div>
+              {due.map(function(l,i){return(<div key={i} onClick={function(){setSelLead(l);setNoteText(l.salesmanNote||"");}} style={{padding:"7px 9px",background:"#fff",borderRadius:7,border:"1px solid #FFE082",marginBottom:4,cursor:"pointer"}}>
+                <div style={{fontSize:13,fontWeight:700}}>{getName(l)}</div>
+                <div style={{fontSize:11,color:"#888"}}>{l.vehicle||"No vehicle"} · Was due: {l.futureDate||"today"}</div>
+              </div>);})}
+            </div>);
+          })()}
           <div style={{display:"flex",gap:6,marginBottom:10}}>
             {[["active","✅ Active"],["future","🟡 Future"],["cold","❄️ Cold"],["declined","🔴 Declined"]].map(function(pair){
               var f=pair[0],lbl=pair[1];
               var cnt=f==="active"
-                ?myLeads.filter(function(l){return l.leadStatus!=="cold"&&l.leadStatus!=="declined"&&!l.sold;}).length
+                ?myLeads.filter(function(l){return l.leadStatus!=="cold"&&l.leadStatus!=="declined"&&l.leadStatus!=="future"&&!l.sold;}).length
                 :myLeads.filter(function(l){return l.leadStatus===f;}).length;
               return(
                 <button key={f} onClick={function(){setLeadFolder(f);}} style={{flex:1,padding:"7px 4px",borderRadius:8,border:"none",
@@ -1737,7 +1754,7 @@ const LoginScreen=(({onLogin,people,onPeopleLoaded})=>{
           <div style={{fontSize:10,color:'#C9A84C',fontWeight:700,letterSpacing:3,marginBottom:3}}>NTT TOYOTA LOUIS TRICHARDT</div>
           <div style={{fontSize:26,fontWeight:900,color:'#fff',marginBottom:2}}>AUTOMARK</div>
           <div style={{fontSize:11,color:'#555'}}>Sales Platform</div>
-          <div style={{fontSize:13,color:'#0f0',fontWeight:900,marginTop:6}}>BUILD-MAY30-3</div>
+          <div style={{fontSize:13,color:'#0f0',fontWeight:900,marginTop:6}}>BUILD-MAY30-4</div>
         </div>
         {names.length===0?(
           <div style={{textAlign:'center',color:'#C9A84C',padding:'20px',fontSize:13}}>{err||'Loading team data...'}</div>
